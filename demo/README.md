@@ -120,7 +120,15 @@ capacidade de quotas ou funcionamento de uma aplicação implantada.
   O deploy.sh instala boto3 e bibliotecas de documentos, sem instalar o ambiente
   de runtime necessário para validar os imports (Pydantic, settings, Strands,
   entre outros). Build interrompido antes de gastar com etapas posteriores.
-  Próximo ajuste: instalar/verificar essas dependências antes da geração.
+  Dependências corrigidas em requirements.txt e preflight.py. Instalação em
+  Python 3.11 limpo, pip check, importação da referência e 20 testes passaram.
+  Quinta execução confirmou `Reference import OK` no CodeBuild; agent-builder
+  concluiu a etapa, mas repetiu muitas leituras/validações. O limite de 1 milhão
+  de tokens foi atingido antes da UI: 997.736 de entrada, 17.106 de saída,
+  44 chamadas GLM 4.7, 232 segundos. Build e workflow terminaram FAILED.
+  Próximo ajuste proposto: reduzir releituras/contexto e verificações redundantes
+  antes de repetir, mantendo o limite aprovado. UI, dados e deploy continuam
+  pendentes. Nenhum build está ativo.
 - My Apps filtra apenas deployments App Factory com status `deployed`.
   Por isso permanece vazio; tentativas em andamento/falhas estão em Deployments.
 - Build frontend e 22 testes offline (App Factory + templates) passaram.
