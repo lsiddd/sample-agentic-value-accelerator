@@ -1,0 +1,13 @@
+# Builder, generated Strands import checks, and sample document generation.
+# Strands/MCP requires Pydantic >=2.11; validate with its compatible runtime deps.
+boto3>=1.43.0
+botocore[crt]>=1.43.0
+pydantic>=2.11,<3
+pydantic-settings==2.6.0
+strands-agents[otel]>=1.38.0,<2
+# Shared S3 tools import the LangChain decorator even for Strands.
+langchain-core==0.3.29
+structlog>=24.4.0
+pypdf>=5.2.0
+reportlab
+Pillow

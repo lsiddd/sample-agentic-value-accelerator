@@ -129,12 +129,21 @@ python3 -m app_factory.builder --submission-id <uuid>         # fetches answers 
 ```
 
 Requires:
-- `boto3>=1.43.0` and `botocore[crt]` (the latter supports AWS CLI login profiles)
+- Install `requirements.txt` with the same Python interpreter used for the builder.
+  It includes Bedrock, Strands and shared-tool dependencies for import validation.
 - Python 3.11+, Node/npm and the generated application's dependencies
 - Optional `reportlab` / `Pillow` for sample PDF/image generation
 - AWS credentials with Bedrock access
 
 CodeBuild stages everything automatically; see `deploy.sh` for the phase-by-phase flow.
+Before model calls, `preflight.py` imports the customer-service reference in the
+AgentCore Docker layout. Missing/incompatible dependencies stop the build early.
+Run the same check locally from the repo root:
+
+```bash
+python3 -m pip install -r applications/app_factory/requirements.txt
+python3 applications/app_factory/preflight.py applications/fsi_foundry
+```
 
 ---
 

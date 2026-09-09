@@ -19,18 +19,12 @@ echo ""
 # ============================================================
 echo "=== Phase 1: Code Generation ==="
 
-# The factory calls Bedrock Converse directly; no Claude CLI/SDK is needed.
-echo "Installing Bedrock builder dependencies..."
-pip install 'boto3>=1.43.0' 'botocore[crt]' || { echo "ERROR: Failed to install Bedrock SDK"; exit 1; }
-
-# Libs the data-builder subagent uses to generate PDF/image sample documents
-echo "Installing PDF + image generation libs for data-builder..."
-pip install reportlab Pillow 2>&1 | tail -3 || echo "WARNING: reportlab/Pillow install failed — document generation may be degraded"
-
-# Registry publish uses AgentCore Control Plane APIs (preview) that require
-# a recent boto3. CodeBuild image may ship an older version.
-echo "Upgrading boto3 for AgentCore registry support..."
-pip install --upgrade 'boto3>=1.42.90' 2>&1 | tail -2 || echo "WARNING: boto3 upgrade failed"
+# Install into the same interpreter that runs the builder and its validators.
+# Fail before model calls if the generated Strands app cannot be imported.
+echo "Installing builder and validation dependencies..."
+python3 -m pip install -r /tmp/workspace/app_factory/requirements.txt || {
+  echo "ERROR: Failed to install builder/validation dependencies"; exit 1;
+}
 
 # Coding agents use GLM 4.7; data/docs use the cheaper Flash model.
 export AWS_REGION="$AWS_TARGET_REGION"
@@ -62,6 +56,12 @@ cp -r /tmp/workspace/data/* "$WORK_DIR/applications/fsi_foundry/data/" 2>/dev/nu
 # Copy IaC structure for deployment phase
 cp -r /tmp/workspace/iac/* "$WORK_DIR/applications/fsi_foundry/foundations/iac/agentcore/" || { echo "ERROR: Failed to copy IaC"; exit 1; }
 cp -r /tmp/workspace/shared "$WORK_DIR/applications/fsi_foundry/foundations/iac/shared" 2>/dev/null || true
+
+echo "Checking reference application imports before generation..."
+python3 "$WORK_DIR/applications/app_factory/preflight.py" \
+  "$WORK_DIR/applications/fsi_foundry" || {
+  echo "ERROR: Reference import check failed; generation not started"; exit 1;
+}
 
 echo "Running builder.py..."
 # builder.py is now a package (app_factory/); run as module so relative
