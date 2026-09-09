@@ -2,7 +2,7 @@
 set -e
 
 # App Factory Deploy Script
-# Phase 1: Generate use case code with builder.py (Claude Agent SDK)
+# Phase 1: Generate use case code with builder.py (Bedrock Converse / GLM)
 # Phase 2: Deploy the generated use case via Terraform (same as other foundry deployments)
 
 echo "========================================"
@@ -19,15 +19,9 @@ echo ""
 # ============================================================
 echo "=== Phase 1: Code Generation ==="
 
-# Install Claude Code CLI + Agent SDK
-echo "Installing Claude Code CLI..."
-if ! command -v claude &>/dev/null; then
-  npm install -g @anthropic-ai/claude-code 2>&1 || { echo "ERROR: Failed to install Claude Code CLI"; exit 1; }
-fi
-echo "Claude Code CLI: $(claude --version 2>/dev/null || echo 'installed')"
-
-echo "Installing Claude Agent SDK..."
-pip install claude-agent-sdk 2>&1 || { echo "ERROR: Failed to install claude-agent-sdk"; exit 1; }
+# The factory calls Bedrock Converse directly; no Claude CLI/SDK is needed.
+echo "Installing Bedrock builder dependencies..."
+pip install 'boto3>=1.43.0' 'botocore[crt]' || { echo "ERROR: Failed to install Bedrock SDK"; exit 1; }
 
 # Libs the data-builder subagent uses to generate PDF/image sample documents
 echo "Installing PDF + image generation libs for data-builder..."
@@ -38,9 +32,10 @@ pip install reportlab Pillow 2>&1 | tail -3 || echo "WARNING: reportlab/Pillow i
 echo "Upgrading boto3 for AgentCore registry support..."
 pip install --upgrade 'boto3>=1.42.90' 2>&1 | tail -2 || echo "WARNING: boto3 upgrade failed"
 
-# Set up environment for Bedrock routing
-export CLAUDE_CODE_USE_BEDROCK=1
-export ANTHROPIC_MODEL="${ANTHROPIC_MODEL:-us.anthropic.claude-sonnet-4-6}"
+# Coding agents use GLM 4.7; data/docs use the cheaper Flash model.
+export AWS_REGION="$AWS_TARGET_REGION"
+export APP_FACTORY_MODEL_ID="${APP_FACTORY_MODEL_ID:-zai.glm-4.7}"
+export APP_FACTORY_FAST_MODEL_ID="${APP_FACTORY_FAST_MODEL_ID:-zai.glm-4.7-flash}"
 
 # The workspace has the app_factory/ directory with builder.py and ui-template/
 # It also has the full FSI Foundry source structure for the builder to work with

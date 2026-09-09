@@ -34,16 +34,36 @@ Total runtime 15–25 min. Every phase state transition lands in DynamoDB so the
 
 ## Builder architecture — `builder.py`
 
-`builder.py` is the Claude Agent SDK orchestrator that drives code generation. It defines a parent orchestrator (Opus, 80 turns) and six specialized subagents, each with its own prompt, tool allowlist, model, turn budget, and effort level:
+`builder.py` coordinates generation through `bedrock_runtime.py`, a direct Amazon
+Bedrock Converse executor. It needs no Claude CLI or Anthropic SDK.
 
-| Subagent         | Role                                                        | Model   | Turns |
-|------------------|-------------------------------------------------------------|---------|-------|
-| `agent-builder`  | Generates all Python: orchestrator, agents/, models, tools.py | opus    | 40    |
-| `ui-builder`     | Customizes the React console, wires runtime-config.json     | opus    | 30    |
-| `infra-builder`  | Extra Terraform when the use case needs more than defaults  | opus    | 20    |
-| `data-builder`   | Sample profile JSON + real PDF / image documents            | haiku   | 15    |
-| `docs-builder`   | "About this deployment" markdown for the UI                 | haiku   | 10    |
-| `validator`      | 7-check read-only QA pass before pipeline sign-off          | sonnet  | 20    |
+| Agent | Model default | Turn limit |
+|---|---|---:|
+| Orchestrator | GLM 4.7 | 60 |
+| agent-builder | GLM 4.7 | 40 |
+| ui-builder | GLM 4.7 | 30 |
+| infra-builder | GLM 4.7 | 20 |
+| data-builder | GLM 4.7 Flash | 15 |
+| docs-builder | GLM 4.7 Flash | 10 |
+| validator | GLM 4.7 | 20 |
+
+File tools, shell build commands, parallel specialist delegation and the existing
+hooks are supported. Required specialists and artifact checks prevent a plain
+model completion from being treated as a successful build. Generation errors,
+missing artifacts, invalid schemas and final import errors stop the deployment script.
+
+Configuration (environment variables):
+- `APP_FACTORY_MODEL_ID=zai.glm-4.7`
+- `APP_FACTORY_FAST_MODEL_ID=zai.glm-4.7-flash`
+- `AWS_REGION=us-east-1`
+- `APP_FACTORY_MAX_OUTPUT_TOKENS=8192` (per model response)
+- `APP_FACTORY_MAX_CALLS=160` (shared across agents)
+- `APP_FACTORY_MAX_TOTAL_TOKENS=500000` (checked before calls; in-flight calls may exceed it)
+- `APP_FACTORY_TIMEOUT_SECONDS=1200`
+- `APP_FACTORY_WORKSPACE` (optional alternative root containing `applications/fsi_foundry/`)
+
+Run generation in an isolated build workspace: the Bash tool executes build
+commands there, and file-tool path checks are not an operating-system shell sandbox.
 
 Prompts live in `prompts/*.py`, one module per subagent. Shared path constants are in `paths.py`; ANSI console helpers and `log()` are in `console.py`.
 
@@ -51,7 +71,7 @@ Prompts live in `prompts/*.py`, one module per subagent. Shared path constants a
 
 ## Hook-based enforcement — `hooks.py`
 
-Prompts are probabilistic. Hooks are deterministic. Every file write and every data-builder completion is checked at the SDK level by `hooks.py`:
+Prompts are probabilistic. Hooks are deterministic. Every file write and every data-builder completion is checked by the executor by `hooks.py`:
 
 **PreToolUse** — fires on every `Write|Edit`, denies with a reason if matched:
 - **A** `.json` file inside `/documents/`, `/uploads/`, `/attachments/`
@@ -62,12 +82,12 @@ Prompts are probabilistic. Hooks are deterministic. Every file write and every d
 - **F** UI `.tsx` using `item.severity`, `item.message`, or `JSON.stringify(item)` fallbacks
 - **G** orchestrator prefetching `content_base64` into agent input_text
 
-**SubagentStop** (matcher: `data-builder`) — cross-file consistency when the data-builder declares itself done:
+**PostToolUse** (after an `Agent` call to `data-builder`) — cross-file consistency when the data-builder declares itself done:
 - **Gate 1**   every `profile.json` must live at `<entity_id>/profile.json`
 - **Gate 1.5** every `s3_key` must start with an existing entity_id
 - **Gate 2**   every `document_key` must resolve to a real file on disk
 
-Any gate failure returns `{decision: "block", reason: ...}` and forces the subagent to retry.
+Any gate denial becomes an error tool result so the orchestrator can request a repair within the remaining budget.
 
 ---
 
@@ -77,6 +97,7 @@ Any gate failure returns `{decision: "block", reason: ...}` and forces the subag
 app_factory/
 ├── __init__.py            # package marker — run as `python3 -m app_factory.builder`
 ├── builder.py             # runner, CLI, DynamoDB I/O, post-gen patch passes
+├── bedrock_runtime.py     # Converse loop, tools, delegation, hooks, budgets
 ├── paths.py               # REPO_ROOT, FSI_FOUNDRY, REFERENCE_USE_CASE, UI_TEMPLATE
 ├── console.py             # ANSI color helpers + log() / log_tool_use()
 ├── hooks.py               # PreToolUse rules A–G + SubagentStop gates 1 / 1.5 / 2
@@ -108,9 +129,9 @@ python3 -m app_factory.builder --submission-id <uuid>         # fetches answers 
 ```
 
 Requires:
-- `claude-agent-sdk >= 0.1.63` (pip)
-- `@anthropic-ai/claude-code` CLI (npm)
-- `CLAUDE_CODE_USE_BEDROCK=1` + `ANTHROPIC_MODEL` env vars
+- `boto3>=1.43.0` and `botocore[crt]` (the latter supports AWS CLI login profiles)
+- Python 3.11+, Node/npm and the generated application's dependencies
+- Optional `reportlab` / `Pillow` for sample PDF/image generation
 - AWS credentials with Bedrock access
 
 CodeBuild stages everything automatically; see `deploy.sh` for the phase-by-phase flow.
@@ -123,3 +144,22 @@ CodeBuild stages everything automatically; see `deploy.sh` for the phase-by-phas
 - [Control Plane backend](../../platform/control_plane/backend/) — the FastAPI service that accepts submissions and triggers deploys
 - [Reference Implementations](../reference_implementations/) — hand-written end-to-end solutions (pre-App-Factory)
 - [AVA Overview](../../README.md) — full project overview
+
+## Validation of the GLM adapter
+
+On 2026-09-09, 20 offline tests passed. A live, bounded smoke test used GLM 4.7
+to generate Python, Flash to create its README, and GLM to review both. The
+function passed deterministic checks. The run used 11 calls, 6,936 input tokens
+and 908 output tokens. This proves the executor integration, not a full generated
+FSI deployment. No AWS resources were created by this test.
+
+From the repository root:
+
+```bash
+python -m pytest applications/app_factory/tests -q
+AWS_PROFILE=default AWS_REGION=us-east-1 python -m applications.app_factory.tests.smoke_bedrock
+```
+
+The smoke test makes billable Bedrock calls and writes only to a new `/tmp`
+workspace. It exposes no Bash tool. `--model` and `--fast-model` on the builder
+CLI can override the corresponding model environment variables.

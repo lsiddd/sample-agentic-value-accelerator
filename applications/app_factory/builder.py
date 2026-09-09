@@ -1,7 +1,7 @@
 """
 App Factory Builder — Multi-Agent Architecture
 
-Uses the Claude Agent SDK with subagents to generate complete Strands-based
+Uses the Bedrock Converse executor with subagents to generate complete Strands-based
 use cases from questionnaire answers. A parent orchestrator analyzes requirements
 and delegates to specialized subagents:
 
@@ -14,7 +14,7 @@ and delegates to specialized subagents:
 Each subagent's prompt lives in `prompts/<name>.py`. Hook-based enforcement
 (PreToolUse + SubagentStop) lives in `hooks.py`. ANSI color helpers and
 `log()` / `log_tool_use()` live in `console.py`. This file is the thin
-runner: ClaudeAgentOptions wiring, CLI, DynamoDB I/O, post-generation
+runner: AgentOptions wiring, CLI, DynamoDB I/O, post-generation
 patch passes.
 
 Usage:
@@ -24,9 +24,9 @@ Usage:
     python builder.py --submission-id SUB123   # Fetch from DynamoDB
 
 Requires:
-    - claude-agent-sdk >= 0.1.63 (pip install claude-agent-sdk)
-    - Claude Code CLI (npm install -g @anthropic-ai/claude-code)
-    - CLAUDE_CODE_USE_BEDROCK=1 (for Bedrock routing)
+    - boto3 >= 1.43.0 with botocore[crt] for AWS CLI login profiles
+    - GLM 4.7 and GLM 4.7 Flash access in Amazon Bedrock
+    - AWS_REGION=us-east-1 (or another region supporting the configured models)
     - AWS credentials with Bedrock access
 """
 
@@ -43,13 +43,9 @@ import argparse
 from pathlib import Path
 
 import boto3
-from claude_agent_sdk import query, ClaudeAgentOptions, AgentDefinition, HookMatcher
-from claude_agent_sdk.types import (
-    AssistantMessage,
-    ResultMessage,
-    SystemMessage,
-    TextBlock,
-    ToolUseBlock,
+from .bedrock_runtime import (
+    query, AgentOptions, AgentDefinition, HookMatcher,
+    AssistantMessage, ResultMessage, TextBlock, ToolUseBlock, BuildError,
 )
 
 # Paths + shared constants
@@ -76,38 +72,47 @@ from .prompts import (
 from .hooks import enforce_builder_rules, _make_data_builder_stop_validator
 
 
-def build_agent_options(use_case_name: str) -> ClaudeAgentOptions:
-    """Assemble the ClaudeAgentOptions for one builder run.
+def build_agent_options(use_case_name: str) -> AgentOptions:
+    """Assemble the AgentOptions for one builder run.
 
     Wires the orchestrator system prompt, the six subagent AgentDefinitions
     (agent-builder, ui-builder, infra-builder, data-builder, docs-builder,
     validator), and both hook event registrations (PreToolUse rules +
     SubagentStop data-builder gates) into a single options object the
-    Claude Agent SDK's `query()` accepts.
+    Bedrock Converse executor's `query()` accepts.
     """
     fsi = str(FSI_FOUNDRY)
+    coding_model = os.getenv("APP_FACTORY_MODEL_ID", "zai.glm-4.7")
+    fast_model = os.getenv("APP_FACTORY_FAST_MODEL_ID", "zai.glm-4.7-flash")
     data_builder_stop_validator = _make_data_builder_stop_validator(use_case_name)
 
-    return ClaudeAgentOptions(
+    return AgentOptions(
         system_prompt=build_orchestrator_prompt(use_case_name, fsi),
         cwd=str(REPO_ROOT),
-        permission_mode="acceptEdits",
-        max_turns=80,
-        model="opus",
+        max_turns=int(os.getenv("APP_FACTORY_MAX_TURNS", "60")),
+        max_tokens=int(os.getenv("APP_FACTORY_MAX_OUTPUT_TOKENS", "8192")),
+        max_calls=int(os.getenv("APP_FACTORY_MAX_CALLS", "160")),
+        max_total_tokens=int(os.getenv("APP_FACTORY_MAX_TOTAL_TOKENS", "500000")),
+        timeout_seconds=int(os.getenv("APP_FACTORY_TIMEOUT_SECONDS", "1200")),
+        region=os.getenv("AWS_REGION", "us-east-1"),
+        required_agents=("agent-builder", "ui-builder", "data-builder", "docs-builder", "validator"),
+        writable_paths=(
+            str(FSI_FOUNDRY / "use_cases" / use_case_name),
+            str(FSI_FOUNDRY / "ui" / use_case_name),
+            str(FSI_FOUNDRY / "data/samples" / use_case_name),
+            str(FSI_FOUNDRY / "data/registry/offerings.json"),
+            str(FSI_FOUNDRY / "foundations/iac/agentcore/extras"),
+        ),
+        model=coding_model,
         allowed_tools=[
             "Read", "Write", "Edit", "Bash", "Glob", "Grep", "Agent",
         ],
-        disallowed_tools=["WebFetch", "NotebookEdit"],
         hooks={
             # PreToolUse (Write|Edit): enforces Rules A–I on individual file
             # writes — block a Write before it touches disk. Bash is excluded
             # so reportlab / Pillow binary generation isn't intercepted.
-            # PreToolUse (Agent|Task): runs the cross-file consistency gates
-            # AFTER a subagent returns. We use PreToolUse-on-the-next-call
-            # rather than SubagentStop because the SDK silently ignores block
-            # decisions on SubagentStop (the subagent has already finished by
-            # then) — on an Agent/Task PostToolUse, the parent honors deny and
-            # re-invokes the subagent.
+            # PostToolUse runs cross-file consistency gates after delegation.
+            # A denial becomes an error tool result for the orchestrator to repair.
             "PreToolUse": [
                 HookMatcher(matcher="Write|Edit", hooks=[enforce_builder_rules]),
             ],
@@ -124,10 +129,10 @@ def build_agent_options(use_case_name: str) -> ClaudeAgentOptions:
                 ),
                 prompt=_agent_builder_prompt(use_case_name, fsi),
                 tools=["Read", "Write", "Edit", "Bash", "Glob", "Grep"],
-                model="opus",
-                effort="high",
-                permissionMode="dontAsk",
-                maxTurns=40,
+                model=coding_model,
+                max_turns=40,
+                required_files=(f"{fsi}/use_cases/{use_case_name}/src/strands/models.py",
+                                f"{fsi}/use_cases/{use_case_name}/src/strands/orchestrator.py"),
             ),
             "ui-builder": AgentDefinition(
                 description=(
@@ -137,9 +142,9 @@ def build_agent_options(use_case_name: str) -> ClaudeAgentOptions:
                 ),
                 prompt=_ui_builder_prompt(use_case_name, fsi),
                 tools=["Read", "Write", "Edit", "Bash", "Glob", "Grep"],
-                model="opus",
-                permissionMode="dontAsk",
-                maxTurns=30,
+                model=coding_model,
+                max_turns=30,
+                required_files=(f"{fsi}/ui/{use_case_name}/public/runtime-config.json",),
             ),
             "infra-builder": AgentDefinition(
                 description=(
@@ -150,9 +155,8 @@ def build_agent_options(use_case_name: str) -> ClaudeAgentOptions:
                 ),
                 prompt=_infra_builder_prompt(use_case_name, fsi),
                 tools=["Read", "Write", "Edit", "Bash", "Glob", "Grep"],
-                model="opus",
-                permissionMode="dontAsk",
-                maxTurns=20,
+                model=coding_model,
+                max_turns=20,
             ),
             "data-builder": AgentDefinition(
                 description=(
@@ -161,9 +165,9 @@ def build_agent_options(use_case_name: str) -> ClaudeAgentOptions:
                 ),
                 prompt=_data_builder_prompt(use_case_name, fsi),
                 tools=["Read", "Write", "Edit", "Bash", "Glob"],
-                model="haiku",
-                permissionMode="dontAsk",
-                maxTurns=15,
+                model=fast_model,
+                max_turns=15,
+                required_files=(f"{fsi}/data/samples/{use_case_name}/CUST001/profile.json",),
             ),
             "docs-builder": AgentDefinition(
                 description=(
@@ -176,10 +180,9 @@ def build_agent_options(use_case_name: str) -> ClaudeAgentOptions:
                 ),
                 prompt=_docs_builder_prompt(use_case_name, fsi),
                 tools=["Read", "Write", "Bash", "Glob"],
-                model="haiku",
-                effort="low",
-                permissionMode="dontAsk",
-                maxTurns=10,
+                model=fast_model,
+                max_turns=10,
+                required_files=(f"{fsi}/use_cases/{use_case_name}/docs/use-case.md",),
             ),
             "validator": AgentDefinition(
                 description=(
@@ -190,15 +193,8 @@ def build_agent_options(use_case_name: str) -> ClaudeAgentOptions:
                 ),
                 prompt=_validator_prompt(use_case_name, fsi),
                 tools=["Read", "Bash", "Glob", "Grep"],
-                # Upgraded from haiku/low: the validator runs 7 checks (file
-                # completeness, runtime-config schema, field consistency,
-                # performance patterns, document integrity, custom tools,
-                # import paths). haiku + low-effort kept truncating its
-                # output, which forced the orchestrator to re-run the same
-                # checks itself. sonnet with more turns gets a full report.
-                model="sonnet",
-                permissionMode="dontAsk",
-                maxTurns=20,
+                model=coding_model,
+                max_turns=20,
             ),
         },
     )
@@ -691,6 +687,33 @@ def enforce_field_consistency(use_case_name: str) -> dict:
     return report
 
 
+def validate_generated_files(use_case_name: str) -> None:
+    """Require real generated artifacts before an import-only validation can pass."""
+    use_case = FSI_FOUNDRY / "use_cases" / use_case_name
+    required = [use_case / relative for relative in (
+        "src/__init__.py", "src/strands/__init__.py", "src/strands/models.py",
+        "src/strands/config.py", "src/strands/orchestrator.py",
+        "src/strands/agents/__init__.py", "docs/use-case.md",
+    )]
+    required += [FSI_FOUNDRY / "data/samples" / use_case_name / "CUST001/profile.json",
+                 FSI_FOUNDRY / "ui" / use_case_name / "public/runtime-config.json"]
+    missing = [str(path.relative_to(FSI_FOUNDRY)) for path in required if not path.is_file()]
+    if missing:
+        raise BuildError("Required generated files missing: " + ", ".join(missing))
+    if not [p for p in (use_case / "src/strands/agents").glob("*.py") if p.name != "__init__.py"]:
+        raise BuildError("No specialist agent files were generated")
+    for path in use_case.rglob("*.py"):
+        ast.parse(path.read_text(), filename=str(path))
+    for path in (FSI_FOUNDRY / "data/samples" / use_case_name).rglob("*.json"):
+        json.loads(path.read_text())
+    runtime = json.loads(required[-1].read_text())
+    for key in ("use_case_id", "use_case_name", "description", "domain", "agents", "input_schema"):
+        if key not in runtime:
+            raise BuildError(f"runtime-config.json is missing {key}")
+    if runtime["use_case_id"] != use_case_name:
+        raise BuildError("runtime-config.json use_case_id does not match the generated application")
+
+
 async def run_builder(answers: dict, dry_run: bool = False, verbose: bool = False):
     """Run the multi-agent builder to generate a complete use case."""
 
@@ -698,6 +721,8 @@ async def run_builder(answers: dict, dry_run: bool = False, verbose: bool = Fals
     # Without the strip, "  Wire Transfer " → "__wire_transfer_" and paths
     # diverge from the backend's USE_CASE_ID which IS stripped.
     use_case_name = answers["use_case_name"].strip().replace("-", "_").replace(" ", "_").lower().strip("_")
+    if not re.fullmatch(r"[a-z][a-z0-9_]{0,63}", use_case_name):
+        raise ValueError("use_case_name must normalize to a lowercase identifier, starting with a letter")
     prompt = build_context_prompt(answers)
 
     print(f"\n{BOLD}{'='*60}{RESET}")
@@ -720,6 +745,7 @@ async def run_builder(answers: dict, dry_run: bool = False, verbose: bool = Fals
     print(f"  {GREEN}DONE{RESET} Copied {len(ui_files)} files to ui/{use_case_name}/\n")
 
     options = build_agent_options(use_case_name)
+    print(f"  Models: {options.model} / {os.getenv('APP_FACTORY_FAST_MODEL_ID', 'zai.glm-4.7-flash')}")
     start_time = time.time()
     files_written = []
     turn_count = 0
@@ -772,27 +798,31 @@ async def run_builder(answers: dict, dry_run: bool = False, verbose: bool = Fals
         elif isinstance(message, ResultMessage):
             elapsed = time.time() - start_time
             print(f"\n{BOLD}{'='*60}{RESET}")
-            print(f"{GREEN}{BOLD}Builder finished.{RESET}")
+            print(f"{BOLD}Generation response received.{RESET}")
             print(f"  Duration:     {elapsed:.0f}s")
             print(f"  Turns:        {turn_count}")
             print(f"  Subagents:    {subagent_count}")
             if message.total_cost_usd is not None:
                 print(f"  Cost:         ${message.total_cost_usd:.4f}")
+            print(f"  Token usage:  {message.usage}")
             if message.is_error:
                 print(f"  {YELLOW}Completed with errors{RESET}")
                 if message.errors:
                     for err in message.errors:
                         print(f"    - {err}")
+                raise BuildError("Code generation failed: " + "; ".join(message.errors))
 
             print(f"\n  Files generated ({len(files_written)}):")
             for f in sorted(set(files_written)):
                 print(f"    {GREEN}+{RESET} {f}")
 
+            validate_generated_files(use_case_name)
+
             # Deterministic field-consistency enforcement
             print(f"\n{BOLD}Enforcing field consistency (models.py <-> runtime-config.json)...{RESET}")
             fc_report = enforce_field_consistency(use_case_name)
             if fc_report["error"]:
-                print(f"  {YELLOW}WARN{RESET} {fc_report['error']}")
+                raise BuildError(fc_report["error"])
             elif fc_report["fixed"]:
                 print(f"  {YELLOW}DRIFT DETECTED — corrected runtime-config.json:{RESET}")
                 for fix in fc_report["fixed"]:
@@ -807,14 +837,15 @@ async def run_builder(answers: dict, dry_run: bool = False, verbose: bool = Fals
                  f"from use_cases.{use_case_name}.src.strands import *; print('Import OK')"],
                 cwd=str(FSI_FOUNDRY),
                 env={**os.environ, "PYTHONPATH": str(FOUNDATIONS_SRC)},
-                capture_output=True, text=True,
+                capture_output=True, text=True, timeout=120,
             )
             if result.returncode == 0:
                 print(f"  {GREEN}PASS{RESET} {result.stdout.strip()}")
             else:
-                print(f"  {YELLOW}FAIL{RESET} {result.stderr.strip()}")
+                raise BuildError("Generated application import failed: " + result.stderr.strip())
 
             print(f"{'='*60}")
+            print(f"{GREEN}{BOLD}Builder completed and validated.{RESET}")
 
 
 # ---------------------------------------------------------------------------
@@ -824,7 +855,7 @@ async def run_builder(answers: dict, dry_run: bool = False, verbose: bool = Fals
 def main():
     """CLI entrypoint. Parses --submission-id / --answers-file / --dry-run
     / --verbose / --region, loads the questionnaire answers, and hands off
-    to `run_builder()` which drives the Claude Agent SDK session.
+    to `run_builder()` which drives the Bedrock Converse executor session.
     """
     parser = argparse.ArgumentParser(description="App Factory Builder (Multi-Agent)")
     parser.add_argument("--dry-run", action="store_true",
@@ -838,7 +869,13 @@ def main():
     parser.add_argument("--region", type=str,
                         default=os.environ.get("AWS_REGION", "us-east-1"),
                         help="AWS region for DynamoDB (default: us-east-1)")
+    parser.add_argument("--model", default=os.getenv("APP_FACTORY_MODEL_ID", "zai.glm-4.7"),
+                        help="Bedrock model ID for orchestrator, code, UI, infrastructure and validation")
+    parser.add_argument("--fast-model", default=os.getenv("APP_FACTORY_FAST_MODEL_ID", "zai.glm-4.7-flash"),
+                        help="Bedrock model ID for sample data and documentation")
     args = parser.parse_args()
+    os.environ.update(AWS_REGION=args.region, APP_FACTORY_MODEL_ID=args.model,
+                      APP_FACTORY_FAST_MODEL_ID=args.fast_model)
 
     if args.answers_file:
         with open(args.answers_file) as f:

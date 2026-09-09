@@ -6,8 +6,9 @@ they don't have to reach back into the top-level builder module for
 paths — which would create circular imports.
 """
 from pathlib import Path
+import os
 
-REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+REPO_ROOT = Path(os.getenv("APP_FACTORY_WORKSPACE", str(Path(__file__).resolve().parent.parent.parent))).resolve()
 FSI_FOUNDRY = REPO_ROOT / "applications" / "fsi_foundry"
 FOUNDATIONS_SRC = FSI_FOUNDRY / "foundations" / "src"
 REFERENCE_USE_CASE = "customer_service"

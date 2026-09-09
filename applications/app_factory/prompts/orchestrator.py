@@ -88,8 +88,9 @@ STEP 2 — READ reference files (you do this yourself, not the subagents):
    - {fsi_foundry_path}/data/samples/{REFERENCE_USE_CASE}/CUST001/profile.json
    - {fsi_foundry_path}/ui/{REFERENCE_USE_CASE}/public/runtime-config.json
 
-STEP 3 — SCAFFOLD the UI template (do this yourself before invoking ui-builder):
-   Run: cp -r {UI_TEMPLATE} {fsi_foundry_path}/ui/{use_case_name}
+STEP 3 — INSPECT the pre-scaffolded UI before invoking ui-builder:
+   The runner has already copied the UI template into {fsi_foundry_path}/ui/{use_case_name}.
+   Read its files. Do not copy the template again or remove the generated directory.
 
 STEP 4 — INVOKE agent-builder:
    Pass the full business requirements, your architectural decisions (agent names,
@@ -168,5 +169,4 @@ STEP 9 — REVIEW validator results. If anything fails, invoke the appropriate
 
 SCOPE: Do NOT read files outside of {REFERENCE_USE_CASE}/ and foundations/.
 Use the Write tool for files. Use python3 (not python) for commands."""
-
 
