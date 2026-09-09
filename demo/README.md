@@ -104,7 +104,12 @@ capacidade de quotas ou funcionamento de uma aplicação implantada.
   de geração. O limite é verificado entre chamadas, permitindo ultrapassagem
   pela última resposta. Agent-builder escreveu arquivos, mas UI/dados/validação
   e deploy não foram concluídos. CodeBuild e workflow encerraram FAILED.
-  Não há build ativo; próxima decisão é ajustar o limite de geração.
+  Limite aprovado e atualizado para 1.000.000 tokens, mantendo 80 chamadas
+  e 900 segundos de geração. A tentativa seguinte falhou antes de iniciar
+  CodeBuild: `ExpiredTokenException` ao ler a submissão no backend local.
+  O perfil AWS CLI `default` continua válido; os containers precisam receber
+  credenciais renovadas via `python3 demo/start_local.py`. Nenhum novo build
+  foi iniciado nessa tentativa.
   CodeBuild terminou STOPPED e o workflow registrou a execução como FAILED.
   Geração completa, deploy AgentCore e UI gerada ainda não foram validados.
 - Modelo do runtime corrigido: `BEDROCK_MODEL_ID` com padrão
