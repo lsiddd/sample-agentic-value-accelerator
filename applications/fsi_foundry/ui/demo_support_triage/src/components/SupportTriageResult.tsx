@@ -37,12 +37,12 @@ const CATEGORY_LABELS: Record<string, string> = {
 export default function SupportTriageResult({ response, onNewRequest }: SupportTriageResultProps) {
   const [showReasoning, setShowReasoning] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [suggestedResponse, setSuggestedResponse] = useState(response.suggested_response || '');
   const [editedResponse, setEditedResponse] = useState(response.suggested_response || '');
 
   const category = response.category || 'other';
   const urgency = response.urgency || 'low';
-  const confidence = response.confidence_score || 0;
-  const suggestedResponse = response.suggested_response || '';
+  const confidence = response.confidence ?? 0;
   const reasoning = response.reasoning || '';
 
   const categoryColor = CATEGORY_COLORS[category] || CATEGORY_COLORS.other;
@@ -58,6 +58,7 @@ export default function SupportTriageResult({ response, onNewRequest }: SupportT
   };
 
   const handleSaveEdit = () => {
+    setSuggestedResponse(editedResponse);
     setIsEditing(false);
     alert('Response updated! (Demo action)');
   };

@@ -4,6 +4,33 @@ Verificado em 09/09/2026, perfil AWS `default` (root), região `us-east-1`.
 A API Free Tier retornou plano PAID ativo e US$ 200 de créditos. A atualização
 do saldo não necessariamente reflete imediatamente as chamadas de inferência.
 
+## App Factory funcionando — 09/09/2026
+
+- App: https://d276q5tp5ptm8q.cloudfront.net/console
+- Deployment: `bbe7b3ed-6c40-41d7-a68d-bea5b839347b`, status `deployed`.
+- CodeBuild: `f4363597-4d74-4509-8a88-9b953f9440d8`, `SUCCEEDED`.
+- AgentCore `READY`, modelo efetivo `zai.glm-4.7-flash`.
+- Teste real pela interface: `TICKET001`, modo `full`, retornou `account_access`,
+  urgência `high`, justificativa e rascunho. Nenhum erro HTTP/JavaScript no teste.
+- My Apps lista o app com Open App e View details.
+- Aprovação é uma ação demonstrativa local; não envia mensagens nem grava uma
+  aprovação durável. O modo completo foi testado; os modos parciais não foram validados.
+- Código e UI gerados estão em `applications/fsi_foundry/{use_cases,ui}/demo_support_triage`.
+  Os oito exemplos fictícios estão em `data/samples/demo_support_triage`.
+- A geração completa levou 352 segundos e usou 1.474.065 tokens de entrada,
+  28.385 de saída, em 110 chamadas GLM 4.7/Flash. Esses números são desta
+  execução, não o consumo acumulado da conta.
+- Correções: diretório de trabalho explícito no Bash; validação de amostras sem
+  exigir CUST001; parser JSON no executor; confiança e edição de resposta na UI.
+  O gerador produziu `ticket.json`, mas chamou o retriever compartilhado `profile`.
+  Copiamos os mesmos dados para `profile.json` no S3 e no repo para alinhar o runtime.
+- Os limites artificiais do gerador seguem desativados conforme solicitado.
+  Não foi adicionado mecanismo de checkpoints. O pacote gerado foi salvo pelo
+  estágio normal de empacotamento do pipeline.
+- Validação offline: 29 testes App Factory; compilação Vite e TypeScript da UI.
+
+As seções abaixo preservam o histórico dos testes e das tentativas anteriores.
+
 ## Modelos e alterações
 
 - Nova Lite é o padrão em 10 templates, incluindo os configs Strands/LangGraph,
