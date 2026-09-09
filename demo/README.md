@@ -114,6 +114,15 @@ capacidade de quotas ou funcionamento de uma aplicação implantada.
   Geração completa, deploy AgentCore e UI gerada ainda não foram validados.
 - Modelo do runtime corrigido: `BEDROCK_MODEL_ID` com padrão
   `zai.glm-4.7-flash` substitui a variável indefinida `ANTHROPIC_MODEL`.
+- Credenciais renovadas e quarta execução iniciada com HTTP 201, já usando
+  limite de 1.000.000 tokens. GLM gerou arquivos do agente, mas o teste de
+  importação do agent-builder reportou ausência de `pydantic` no CodeBuild.
+  O deploy.sh instala boto3 e bibliotecas de documentos, sem instalar o ambiente
+  de runtime necessário para validar os imports (Pydantic, settings, Strands,
+  entre outros). Build interrompido antes de gastar com etapas posteriores.
+  Próximo ajuste: instalar/verificar essas dependências antes da geração.
+- My Apps filtra apenas deployments App Factory com status `deployed`.
+  Por isso permanece vazio; tentativas em andamento/falhas estão em Deployments.
 - Build frontend e 22 testes offline (App Factory + templates) passaram.
 
 Também foi identificado que as políticas IAM de alguns templates constroem
