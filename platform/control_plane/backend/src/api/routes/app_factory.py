@@ -317,7 +317,13 @@ async def deploy_submission(submission_id: str, _=Depends(require_role(Role.OPER
             input=json.dumps(sf_input),
         )
         deployment.execution_arn = response["executionArn"]
-        svc.table.put_item(Item=svc._to_item(deployment))
+        # The pipeline may already have advanced status/build_id. Persist only
+        # the new ARN so this request cannot overwrite those concurrent updates.
+        svc.table.update_item(
+            Key={"pk": f"DEPLOY#{deployment.deployment_id}", "sk": "META"},
+            UpdateExpression="SET execution_arn = :arn",
+            ExpressionAttributeValues={":arn": deployment.execution_arn},
+        )
     except Exception as e:
         logger.error(f"App Factory pipeline start failed: {e}")
         svc.update_status(deployment.deployment_id, DeploymentStatus.FAILED, error_message=str(e))
