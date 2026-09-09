@@ -10,7 +10,7 @@ The CodeBuild role retains the repository module's broad IaC provisioning
 permissions, needed by generated deployments; this is a dedicated demo pipeline.
 
 Limits: one concurrent build, 30-minute CodeBuild timeout, 40-minute workflow
-limit, 80 model calls and 150,000 aggregate tokens for generation. Token limits
+limit, 80 model calls and 1,000,000 aggregate tokens for generation. Token limits
 are checked between model calls and are not a dollar spending cap.
 
 From the repository root, with the authorized `default` AWS session:
