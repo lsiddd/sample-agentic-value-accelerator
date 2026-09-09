@@ -1,0 +1,14 @@
+{
+  "ticket_id": "TICKET001",
+  "customer_id": "CUST001",
+  "subject": "Unable to access online banking - login error",
+  "description": "I've been trying to log into my online banking account for the past 30 minutes but keep receiving an error message saying 'Invalid credentials'. I'm certain I'm using the correct username and password. I've tried on both Chrome and Safari browsers with no success. I need to check my account balance and make a payment before the deadline.",
+  "priority": "high",
+  "category": "technical_issues",
+  "created_at": "2024-01-20T09:15:00Z",
+  "status": "open",
+  "channel": "web",
+  "customer_tier": "premium",
+  "previous_interactions": 3,
+  "sentiment": "frustrated"
+}

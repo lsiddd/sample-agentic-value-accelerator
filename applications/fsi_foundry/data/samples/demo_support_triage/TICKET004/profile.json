@@ -1,0 +1,14 @@
+{
+  "ticket_id": "TICKET004",
+  "customer_id": "CUST004",
+  "subject": "Account locked - security concern",
+  "description": "I received an email stating my account has been locked due to multiple failed login attempts. I haven't tried to log in more than once today. I'm worried about unauthorized access to my account. I need to reset my password immediately and verify that no transactions have been made while my account was locked.",
+  "priority": "urgent",
+  "category": "account_access_issues",
+  "created_at": "2024-01-20T12:00:00Z",
+  "status": "open",
+  "channel": "phone",
+  "customer_tier": "enterprise",
+  "previous_interactions": 0,
+  "sentiment": "anxious"
+}

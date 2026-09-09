@@ -1,0 +1,14 @@
+{
+  "ticket_id": "TICKET008",
+  "customer_id": "CUST008",
+  "subject": "What are the current interest rates for savings accounts?",
+  "description": "I'm considering moving my savings to your bank and would like to know the current interest rates for different savings account tiers. I have $50,000 to deposit and want to maximize my returns. Could you also explain the difference between a regular savings account and a money market account? I'm looking for the best rate with reasonable access to my funds.",
+  "priority": "low",
+  "category": "product_information_requests",
+  "created_at": "2024-01-20T16:00:00Z",
+  "status": "open",
+  "channel": "email",
+  "customer_tier": "basic",
+  "previous_interactions": 0,
+  "sentiment": "informed"
+}

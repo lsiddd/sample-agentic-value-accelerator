@@ -1,0 +1,14 @@
+{
+  "ticket_id": "TICKET007",
+  "customer_id": "CUST007",
+  "subject": "System error when transferring funds between accounts",
+  "description": "I'm trying to transfer $5,000 from my checking account to my savings account, but I keep getting an error message: 'Transaction declined - insufficient funds'. I have $12,500 in my checking account, so I should have enough. I've tried this transaction three times now with the same error. I need to move this money urgently for an upcoming expense.",
+  "priority": "high",
+  "category": "technical_issues",
+  "created_at": "2024-01-20T15:45:00Z",
+  "status": "open",
+  "channel": "web",
+  "customer_tier": "premium",
+  "previous_interactions": 2,
+  "sentiment": "frustrated"
+}

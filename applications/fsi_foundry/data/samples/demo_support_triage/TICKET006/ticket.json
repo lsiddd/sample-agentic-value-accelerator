@@ -1,0 +1,14 @@
+{
+  "ticket_id": "TICKET006",
+  "customer_id": "CUST006",
+  "subject": "How do I set up automatic bill pay?",
+  "description": "I'm trying to set up automatic bill pay for my mortgage payment, but I'm not sure how to do it. I have the account number and routing number, but I'm not sure which account to link it to. Also, can I schedule payments in advance? I want to make sure my mortgage is paid on time every month. I'm a new customer and this is my first time using automatic bill pay.",
+  "priority": "low",
+  "category": "general_questions",
+  "created_at": "2024-01-20T14:30:00Z",
+  "status": "open",
+  "channel": "chat",
+  "customer_tier": "basic",
+  "previous_interactions": 0,
+  "sentiment": "confused"
+}

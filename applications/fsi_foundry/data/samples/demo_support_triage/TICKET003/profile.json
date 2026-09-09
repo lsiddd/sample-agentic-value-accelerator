@@ -1,0 +1,14 @@
+{
+  "ticket_id": "TICKET003",
+  "customer_id": "CUST003",
+  "subject": "Unexpected charge on my statement - $299.99",
+  "description": "I noticed a charge of $299.99 on my January statement that I don't recognize. I have a premium subscription that costs $19.99/month, so this amount is much higher. I've checked my account activity and don't see any other charges. Can you please investigate this charge and let me know if it's legitimate or if I need to dispute it?",
+  "priority": "medium",
+  "category": "billing_inquiries",
+  "created_at": "2024-01-20T11:45:00Z",
+  "status": "in_progress",
+  "channel": "email",
+  "customer_tier": "premium",
+  "previous_interactions": 5,
+  "sentiment": "concerned"
+}

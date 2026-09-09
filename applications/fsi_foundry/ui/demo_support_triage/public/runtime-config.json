@@ -1,0 +1,35 @@
+{
+  "use_case_id": "demo_support_triage",
+  "use_case_name": "Support Triage",
+  "description": "Classify fictional customer support requests and suggest a reply. Show category, urgency and draft response for a fictional ticket.",
+  "domain": "Customer Service",
+  "agents": [
+    {
+      "id": "support_triage_agent",
+      "name": "Support Triage Agent",
+      "description": "Classifies support tickets into categories, determines urgency levels, and drafts professional responses for fictional customer support requests."
+    }
+  ],
+  "api_endpoint": "",
+  "input_schema": {
+    "id_field": "ticket_id",
+    "id_label": "Ticket ID",
+    "id_placeholder": "e.g. TICKET001",
+    "type_field": "triage_mode",
+    "type_options": [
+      {
+        "value": "full",
+        "label": "Full Triage (Classify + Draft)"
+      },
+      {
+        "value": "classify_only",
+        "label": "Classify Only"
+      },
+      {
+        "value": "draft_only",
+        "label": "Draft Response Only"
+      }
+    ],
+    "test_entities": ["TICKET001"]
+  }
+}
