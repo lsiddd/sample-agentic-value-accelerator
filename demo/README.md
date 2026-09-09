@@ -82,17 +82,22 @@ capacidade de quotas ou funcionamento de uma aplicação implantada.
   (`GUARDRAIL_INTERVENED`) e liberou uma frase comum (`NONE`).
   Isso valida filtro de palavras; PII, filtros de conteúdo e integração no gateway
   ainda não foram testados.
-- Testes pausados em App Factory: `GET /api/v1/app-factory/submissions`
-  retorna 500 por `ResourceNotFoundException`. Falta a tabela
-  `fsi-control-plane-app-factory`.
+- App Factory: tabela `fsi-control-plane-app-factory` criada em modo
+  `PAY_PER_REQUEST`, chaves string `pk`/`sk`, tag `Project=ava-demo`.
+  Submissão fictícia `demo-support-triage` salva pela API (HTTP 201), catálogo
+  `AS01`; consultas de detalhe e lista passaram com todos os campos preservados.
+- Geração/deploy pela interface pausados: `STATE_MACHINE_ARN` está vazio no
+  backend. A rota depende de pipeline Step Functions/CodeBuild, IAM e tabela
+  de deployments. Não foi disparada: ela cria um bucket antes de gravar o
+  deployment e verificar o pipeline. A geração completa segue não validada.
 - Build frontend e 22 testes offline (App Factory + templates) passaram.
 
 Também foi identificado que as políticas IAM de alguns templates constroem
 `foundation-model/${var.model_id}` mesmo para IDs `us.*` de inference profiles.
 Antes de deploy com Nova cross-region, ajustar essas políticas para o profile
 e os modelos de destino. As execuções locais com root não validam a role do runtime.
-Recursos AWS criados até esta etapa: tabelas DynamoDB de Guardrails e Knowledge
-e o Bedrock Guardrail `ava-demo-word-filter`, todos em `us-east-1`.
+Recursos AWS criados até esta etapa: tabelas DynamoDB de Guardrails, Knowledge
+e App Factory e o Bedrock Guardrail `ava-demo-word-filter`, todos em `us-east-1`.
 
 ## Reproduzir
 
