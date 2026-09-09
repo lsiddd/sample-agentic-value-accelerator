@@ -143,3 +143,18 @@ def test_bash_timeout_terminates_process(tmp_path):
     runtime = BedrockExecutor(options(tmp_path, shell_timeout_seconds=1), Client())
     result = asyncio.run(runtime.tool(call("Bash", {"command": "sleep 10"}), ["Bash"]))
     assert result["toolResult"]["status"] == "error"
+
+
+@pytest.mark.parametrize('limit,should_fail', [(0, False), (10, True)])
+def test_token_cap_can_be_disabled_explicitly(tmp_path, limit, should_fail):
+    client = Client(response(calls=[call('Write', {'file_path': 'out.py', 'content': 'x=1'})]), response())
+    messages = collect(options(tmp_path, max_total_tokens=limit), client)
+    assert messages[-1].is_error == should_fail
+    assert len(client.requests) == (1 if should_fail else 2)
+
+
+def test_disabling_token_cap_keeps_call_cap(tmp_path):
+    client = Client(response(calls=[call('Read', {'file_path': 'missing'})]))
+    messages = collect(options(tmp_path, max_total_tokens=0, max_calls=1), client)
+    assert messages[-1].is_error
+    assert len(client.requests) == 1

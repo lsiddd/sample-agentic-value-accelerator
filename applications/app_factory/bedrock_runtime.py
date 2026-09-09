@@ -48,7 +48,7 @@ class AgentOptions:
     max_turns: int = 60
     max_tokens: int = 8192
     max_calls: int = 160
-    max_total_tokens: int = 500_000
+    max_total_tokens: int = 500_000  # Zero explicitly disables the aggregate token cap.
     timeout_seconds: int = 1200
     shell_timeout_seconds: int = 120
     region: str = "us-east-1"
@@ -113,9 +113,11 @@ class BedrockExecutor:
     def __init__(self, options: AgentOptions, client=None):
         self.options = options
         for value in (options.max_turns, options.max_tokens, options.max_calls,
-                      options.max_total_tokens, options.timeout_seconds, options.shell_timeout_seconds):
+                      options.timeout_seconds, options.shell_timeout_seconds):
             if value <= 0:
                 raise ValueError("Builder limits must be positive")
+        if options.max_total_tokens < 0:
+            raise ValueError("Token limit must be nonnegative (zero disables it)")
         self.root = Path(options.cwd).resolve()
         self.writable = tuple(Path(p).resolve() for p in options.writable_paths) or (self.root,)
         self.client = client or boto3.client("bedrock-runtime", region_name=options.region,
@@ -259,7 +261,10 @@ class BedrockExecutor:
                                "prompt": STRING, "description": STRING}, ["subagent_type", "prompt"]))
         system += "\nUse only the provided tools. Write files with Write/Edit so build rules are checked. Report failures honestly. Do not deploy AWS resources."
         for _ in range(turns):
-            if self.calls >= self.options.max_calls or sum(self.usage.values()) >= self.options.max_total_tokens:
+            if self.calls >= self.options.max_calls or (
+                self.options.max_total_tokens > 0
+                and sum(self.usage.values()) >= self.options.max_total_tokens
+            ):
                 raise BuildError("Shared model-call/token budget exhausted")
             remaining = self.deadline - time.monotonic()
             if remaining <= 0:
