@@ -96,8 +96,15 @@ capacidade de quotas ou funcionamento de uma aplicação implantada.
   objeto antigo para salvar `execution_arn`, sobrescrevendo o status atualizado.
   Corrigido para atualizar somente o ARN; teste de concorrência passou.
   Segunda execução preservou status/build ID, mas revelou erro no pipeline mínimo:
-  ele grava `building`, ausente do enum DeploymentStatus, causando HTTP 500 na
-  consulta. Correção pendente: usar `deploying`. Segundo build também interrompido.
+  ele gravava `building`, ausente do enum DeploymentStatus, causando HTTP 500.
+  Corrigido para `deploying`; todos os valores do pipeline conferidos contra o
+  enum. Terceira execução: API e tela de deployment funcionaram sem erros.
+  A geração terminou ao atingir o limite conservador de 150.000 tokens:
+  153.902 tokens de entrada + 9.373 de saída, 11 chamadas GLM 4.7, 98 segundos
+  de geração. O limite é verificado entre chamadas, permitindo ultrapassagem
+  pela última resposta. Agent-builder escreveu arquivos, mas UI/dados/validação
+  e deploy não foram concluídos. CodeBuild e workflow encerraram FAILED.
+  Não há build ativo; próxima decisão é ajustar o limite de geração.
   CodeBuild terminou STOPPED e o workflow registrou a execução como FAILED.
   Geração completa, deploy AgentCore e UI gerada ainda não foram validados.
 - Modelo do runtime corrigido: `BEDROCK_MODEL_ID` com padrão
