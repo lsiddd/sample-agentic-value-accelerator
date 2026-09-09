@@ -129,6 +129,14 @@ capacidade de quotas ou funcionamento de uma aplicação implantada.
   Próximo ajuste proposto: reduzir releituras/contexto e verificações redundantes
   antes de repetir, mantendo o limite aprovado. UI, dados e deploy continuam
   pendentes. Nenhum build está ativo.
+- Sexta execução com teto de tokens desativado explicitamente (`0`): geração
+  passou por código/UI/dados, mas terminou no limite de 80 chamadas. Consumo:
+  1.350.794 tokens de entrada + 30.907 de saída, 330 segundos. GLM 4.7 usou
+  1.243.929/24.372; Flash usou 106.865/6.535 (entrada/saída). Cinco delegações;
+  houve repetição após os limites individuais de etapas. Validação final e
+  deploy não concluídos. Build/workflow FAILED; nenhum build ativo. Restauração do teto
+  cancelada pelo usuário antes de aplicar. Nova autorização: remover todos os
+  limites artificiais do gerador e concluir a demo, corrigindo os bloqueios.
 - My Apps filtra apenas deployments App Factory com status `deployed`.
   Por isso permanece vazio; tentativas em andamento/falhas estão em Deployments.
 - Build frontend e 22 testes offline (App Factory + templates) passaram.

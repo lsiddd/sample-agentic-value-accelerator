@@ -9,11 +9,10 @@ buckets, CodeBuild project, log group, Step Functions state machine and IAM role
 The CodeBuild role retains the repository module's broad IaC provisioning
 permissions, needed by generated deployments; this is a dedicated demo pipeline.
 
-Limits: one concurrent build, 30-minute CodeBuild timeout, 40-minute workflow
-limit, 80 model calls and an aggregate token cap configurable through `APP_FACTORY_MAX_TOTAL_TOKENS`
-(`0` explicitly disables it). The cap is temporarily disabled for the approved
-full-generation trial. Token limits
-are checked between model calls and are not a dollar spending cap.
+The user-authorized full run disables aggregate token, call, agent-turn,
+execution-deadline and shell-deadline limits (`0`). CodeBuild permits one build
+at a time with an 8-hour service timeout. The Step Functions workflow has no
+custom execution timeout. Monitor execution and costs while running.
 
 From the repository root, with the authorized `default` AWS session:
 

@@ -94,6 +94,7 @@ def build_agent_options(use_case_name: str) -> AgentOptions:
         max_calls=int(os.getenv("APP_FACTORY_MAX_CALLS", "160")),
         max_total_tokens=int(os.getenv("APP_FACTORY_MAX_TOTAL_TOKENS", "500000")),
         timeout_seconds=int(os.getenv("APP_FACTORY_TIMEOUT_SECONDS", "1200")),
+        shell_timeout_seconds=int(os.getenv("APP_FACTORY_SHELL_TIMEOUT_SECONDS", "120")),
         region=os.getenv("AWS_REGION", "us-east-1"),
         required_agents=("agent-builder", "ui-builder", "data-builder", "docs-builder", "validator"),
         writable_paths=(
@@ -130,7 +131,7 @@ def build_agent_options(use_case_name: str) -> AgentOptions:
                 prompt=_agent_builder_prompt(use_case_name, fsi),
                 tools=["Read", "Write", "Edit", "Bash", "Glob", "Grep"],
                 model=coding_model,
-                max_turns=40,
+                max_turns=int(os.getenv("APP_FACTORY_AGENT_MAX_TURNS", "40")),
                 required_files=(f"{fsi}/use_cases/{use_case_name}/src/strands/models.py",
                                 f"{fsi}/use_cases/{use_case_name}/src/strands/orchestrator.py"),
             ),
@@ -143,7 +144,7 @@ def build_agent_options(use_case_name: str) -> AgentOptions:
                 prompt=_ui_builder_prompt(use_case_name, fsi),
                 tools=["Read", "Write", "Edit", "Bash", "Glob", "Grep"],
                 model=coding_model,
-                max_turns=30,
+                max_turns=int(os.getenv("APP_FACTORY_AGENT_MAX_TURNS", "30")),
                 required_files=(f"{fsi}/ui/{use_case_name}/public/runtime-config.json",),
             ),
             "infra-builder": AgentDefinition(
@@ -156,7 +157,7 @@ def build_agent_options(use_case_name: str) -> AgentOptions:
                 prompt=_infra_builder_prompt(use_case_name, fsi),
                 tools=["Read", "Write", "Edit", "Bash", "Glob", "Grep"],
                 model=coding_model,
-                max_turns=20,
+                max_turns=int(os.getenv("APP_FACTORY_AGENT_MAX_TURNS", "20")),
             ),
             "data-builder": AgentDefinition(
                 description=(
@@ -166,7 +167,7 @@ def build_agent_options(use_case_name: str) -> AgentOptions:
                 prompt=_data_builder_prompt(use_case_name, fsi),
                 tools=["Read", "Write", "Edit", "Bash", "Glob"],
                 model=fast_model,
-                max_turns=15,
+                max_turns=int(os.getenv("APP_FACTORY_AGENT_MAX_TURNS", "15")),
                 required_files=(f"{fsi}/data/samples/{use_case_name}/CUST001/profile.json",),
             ),
             "docs-builder": AgentDefinition(
@@ -181,7 +182,7 @@ def build_agent_options(use_case_name: str) -> AgentOptions:
                 prompt=_docs_builder_prompt(use_case_name, fsi),
                 tools=["Read", "Write", "Bash", "Glob"],
                 model=fast_model,
-                max_turns=10,
+                max_turns=int(os.getenv("APP_FACTORY_AGENT_MAX_TURNS", "10")),
                 required_files=(f"{fsi}/use_cases/{use_case_name}/docs/use-case.md",),
             ),
             "validator": AgentDefinition(
@@ -194,7 +195,7 @@ def build_agent_options(use_case_name: str) -> AgentOptions:
                 prompt=_validator_prompt(use_case_name, fsi),
                 tools=["Read", "Bash", "Glob", "Grep"],
                 model=coding_model,
-                max_turns=20,
+                max_turns=int(os.getenv("APP_FACTORY_AGENT_MAX_TURNS", "20")),
             ),
         },
     )

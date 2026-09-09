@@ -158,3 +158,11 @@ def test_disabling_token_cap_keeps_call_cap(tmp_path):
     messages = collect(options(tmp_path, max_total_tokens=0, max_calls=1), client)
     assert messages[-1].is_error
     assert len(client.requests) == 1
+
+
+def test_all_run_limits_can_be_disabled(tmp_path):
+    client = Client(response(calls=[call('Write', {'file_path': 'out.py', 'content': 'x=1'})]), response())
+    messages = collect(options(tmp_path, max_turns=0, max_calls=0, max_total_tokens=0,
+                               timeout_seconds=0, shell_timeout_seconds=0), client)
+    assert not messages[-1].is_error
+    assert len(client.requests) == 2

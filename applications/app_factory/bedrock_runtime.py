@@ -7,6 +7,7 @@ build worker for generation. File tools restrict paths to the configured roots.
 from __future__ import annotations
 
 import asyncio
+import itertools
 from dataclasses import dataclass, field
 import os
 from pathlib import Path
@@ -112,12 +113,12 @@ TOOL_SPECS = {
 class BedrockExecutor:
     def __init__(self, options: AgentOptions, client=None):
         self.options = options
-        for value in (options.max_turns, options.max_tokens, options.max_calls,
+        if options.max_tokens <= 0:
+            raise ValueError("Per-response token limit must be positive")
+        for value in (options.max_turns, options.max_calls, options.max_total_tokens,
                       options.timeout_seconds, options.shell_timeout_seconds):
-            if value <= 0:
-                raise ValueError("Builder limits must be positive")
-        if options.max_total_tokens < 0:
-            raise ValueError("Token limit must be nonnegative (zero disables it)")
+            if value < 0:
+                raise ValueError("Limits must be nonnegative; zero disables a limit")
         self.root = Path(options.cwd).resolve()
         self.writable = tuple(Path(p).resolve() for p in options.writable_paths) or (self.root,)
         self.client = client or boto3.client("bedrock-runtime", region_name=options.region,
@@ -130,7 +131,7 @@ class BedrockExecutor:
         self.completed: set[str] = set()
         self.revision = 0
         self.validated_revision = -1
-        self.deadline = time.monotonic() + options.timeout_seconds
+        self.deadline = time.monotonic() + options.timeout_seconds if options.timeout_seconds else None
 
     def path(self, value: str, write=False) -> Path:
         p = Path(value)
@@ -156,7 +157,7 @@ class BedrockExecutor:
             "bash", "-c", command, cwd=self.root, start_new_session=True,
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
         try:
-            output, _ = await asyncio.wait_for(proc.communicate(), self.options.shell_timeout_seconds)
+            output, _ = await asyncio.wait_for(proc.communicate(), self.options.shell_timeout_seconds or None)
         except BaseException:
             try:
                 os.killpg(proc.pid, signal.SIGKILL)
@@ -229,7 +230,10 @@ class BedrockExecutor:
             elif name == "Agent":
                 agent_name = args["subagent_type"]
                 definition = self.options.agents[agent_name]
-                result = await self.loop(args["prompt"], definition.prompt, definition.model,
+                specialist_prompt = definition.prompt
+                if definition.required_files:
+                    specialist_prompt += "\nCompletion requires these exact files: " + ", ".join(definition.required_files)
+                result = await self.loop(args["prompt"], specialist_prompt, definition.model,
                                          definition.tools, definition.max_turns, tool_id)
                 missing_files = [p for p in definition.required_files if not self.path(p).is_file()]
                 if missing_files:
@@ -260,14 +264,15 @@ class BedrockExecutor:
                               {"subagent_type": {"type": "string", "enum": list(self.options.agents)},
                                "prompt": STRING, "description": STRING}, ["subagent_type", "prompt"]))
         system += "\nUse only the provided tools. Write files with Write/Edit so build rules are checked. Report failures honestly. Do not deploy AWS resources."
-        for _ in range(turns):
-            if self.calls >= self.options.max_calls or (
+        system += "\nAfter your required files and relevant checks pass, return a concise final summary immediately. Do not repeat successful checks, re-read unchanged files, or run shell commands just to print summaries."
+        for _ in (range(turns) if turns else itertools.count()):
+            if (self.options.max_calls and self.calls >= self.options.max_calls) or (
                 self.options.max_total_tokens > 0
                 and sum(self.usage.values()) >= self.options.max_total_tokens
             ):
                 raise BuildError("Shared model-call/token budget exhausted")
-            remaining = self.deadline - time.monotonic()
-            if remaining <= 0:
+            remaining = self.deadline - time.monotonic() if self.deadline is not None else None
+            if remaining is not None and remaining <= 0:
                 raise BuildError("Builder deadline exceeded")
             self.calls += 1
             request = dict(modelId=model, system=[{"text": system}], messages=messages,
@@ -315,7 +320,7 @@ class BedrockExecutor:
 
     async def run(self, prompt):
         try:
-            async with asyncio.timeout(self.options.timeout_seconds):
+            async with asyncio.timeout(self.options.timeout_seconds or None):
                 await self.loop(prompt, self.options.system_prompt, self.options.model,
                                 self.options.allowed_tools, self.options.max_turns)
             result = ResultMessage(usage={**self.usage, "calls": self.calls, "models": self.model_usage})
