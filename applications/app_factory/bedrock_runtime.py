@@ -105,8 +105,8 @@ TOOL_SPECS = {
                  {"pattern": STRING, "path": STRING}, ["pattern"]),
     "Grep": spec("Grep", "Search workspace text files with a Python regular expression.",
                  {"pattern": STRING, "path": STRING, "glob": STRING}, ["pattern"]),
-    "Bash": spec("Bash", "Run a build/validation command in the workspace with a time limit. Do not deploy resources.",
-                 {"command": STRING}, ["command"]),
+    "Bash": spec("Bash", "Run a command. Each call starts fresh: cd does NOT persist. Set workdir to the project directory for npm/build commands. Do not deploy resources.",
+                 {"command": STRING, "workdir": STRING}, ["command"]),
 }
 
 
@@ -152,9 +152,12 @@ class BedrockExecutor:
                     if decision.get("permissionDecision") == "deny":
                         raise BuildError(decision.get("permissionDecisionReason", "Tool denied by build rule"))
 
-    async def shell(self, command):
+    async def shell(self, command, workdir=None):
+        cwd = self.path(workdir) if workdir else self.root
+        if not cwd.is_dir():
+            raise BuildError(f"Working directory does not exist: {cwd}")
         proc = await asyncio.create_subprocess_exec(
-            "bash", "-c", command, cwd=self.root, start_new_session=True,
+            "bash", "-c", command, cwd=cwd, start_new_session=True,
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
         try:
             output, _ = await asyncio.wait_for(proc.communicate(), self.options.shell_timeout_seconds or None)
@@ -166,7 +169,7 @@ class BedrockExecutor:
             await proc.wait()
             raise
         if proc.returncode:
-            raise BuildError(f"Command exited {proc.returncode}: {output.decode(errors='replace')[-16000:]}")
+            raise BuildError(f"Command exited {proc.returncode} in {cwd}. Each Bash call starts fresh; set workdir explicitly. Diagnose the error before retrying: {output.decode(errors='replace')[-16000:]}")
         return output.decode(errors="replace")[-16000:] or "Command completed"
 
     async def tool(self, call, allowed):
@@ -225,7 +228,7 @@ class BedrockExecutor:
                         continue
                 result = "\n".join(matches)[:32000] or "No matches"
             elif name == "Bash":
-                result = await self.shell(args["command"])
+                result = await self.shell(args["command"], args.get("workdir"))
                 self.revision += 1
             elif name == "Agent":
                 agent_name = args["subagent_type"]

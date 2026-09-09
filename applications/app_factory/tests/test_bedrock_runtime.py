@@ -166,3 +166,13 @@ def test_all_run_limits_can_be_disabled(tmp_path):
                                timeout_seconds=0, shell_timeout_seconds=0), client)
     assert not messages[-1].is_error
     assert len(client.requests) == 2
+
+
+def test_shell_workdir_selects_project_and_does_not_persist(tmp_path):
+    (tmp_path / 'ui').mkdir()
+    (tmp_path / 'ui' / 'marker').write_text('UI project')
+    runtime = BedrockExecutor(options(tmp_path), Client())
+    assert asyncio.run(runtime.shell('cat marker', 'ui')) == 'UI project'
+    assert asyncio.run(runtime.shell('pwd')).strip() == str(tmp_path)
+    with pytest.raises(BuildError):
+        asyncio.run(runtime.shell('pwd', '..'))
