@@ -14,6 +14,10 @@ credentials = json.loads(subprocess.check_output([
     "aws", "configure", "export-credentials", "--profile", "default", "--format", "process"
 ], text=True))
 env = {**os.environ, "AWS_REGION": "us-east-1", "AWS_PROFILE": "default"}
+if (root / "demo/pipeline/terraform.tfstate").exists():
+    env["STATE_MACHINE_ARN"] = subprocess.check_output([
+        "terraform", f"-chdir={root / 'demo/pipeline'}", "output", "-raw", "state_machine_arn"
+    ], text=True).strip()
 for source, target in (("AccessKeyId", "AWS_ACCESS_KEY_ID"), ("SecretAccessKey", "AWS_SECRET_ACCESS_KEY"),
                        ("SessionToken", "AWS_SESSION_TOKEN")):
     env[target] = credentials.get(source, "")

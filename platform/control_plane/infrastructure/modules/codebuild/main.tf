@@ -368,8 +368,8 @@ resource "aws_codebuild_project" "deployment" {
   name                   = "${var.name_prefix}-deployment"
   description            = "Executes IaC commands for AVA deployments"
   service_role           = aws_iam_role.codebuild.arn
-  build_timeout          = 60
-  concurrent_build_limit = 10
+  build_timeout          = var.build_timeout
+  concurrent_build_limit = var.concurrent_build_limit
 
   artifacts {
     type = "NO_ARTIFACTS"

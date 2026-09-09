@@ -1,0 +1,117 @@
+{
+  "terraform": {
+    "required_providers": {
+      "aws": {
+        "source": "hashicorp/aws",
+        "version": "~> 5.0"
+      }
+    }
+  },
+  "provider": {
+    "aws": {
+      "region": "us-east-1",
+      "allowed_account_ids": [
+        "${var.expected_account_id}"
+      ],
+      "default_tags": {
+        "tags": {
+          "Project": "ava-demo",
+          "Environment": "demo"
+        }
+      }
+    }
+  },
+  "variable": {
+    "expected_account_id": {
+      "type": "string"
+    }
+  },
+  "data": {
+    "aws_caller_identity": {
+      "current": {}
+    }
+  },
+  "locals": {
+    "prefix": "ava-demo-${data.aws_caller_identity.current.account_id}"
+  },
+  "resource": {
+    "aws_dynamodb_table": {
+      "deployments": {
+        "name": "fsi-control-plane-deployments",
+        "billing_mode": "PAY_PER_REQUEST",
+        "hash_key": "pk",
+        "range_key": "sk",
+        "attribute": [
+          {
+            "name": "pk",
+            "type": "S"
+          },
+          {
+            "name": "sk",
+            "type": "S"
+          }
+        ]
+      }
+    },
+    "aws_iam_role": {
+      "pipeline": {
+        "name": "${local.prefix}-pipeline",
+        "assume_role_policy": "{\"Version\": \"2012-10-17\", \"Statement\": [{\"Effect\": \"Allow\", \"Principal\": {\"Service\": \"states.amazonaws.com\"}, \"Action\": \"sts:AssumeRole\"}]}"
+      }
+    },
+    "aws_iam_role_policy": {
+      "pipeline": {
+        "role": "${aws_iam_role.pipeline.id}",
+        "policy": "{\"Version\": \"2012-10-17\", \"Statement\": [{\"Effect\": \"Allow\", \"Action\": [\"codebuild:StartBuild\", \"codebuild:BatchGetBuilds\", \"codebuild:StopBuild\"], \"Resource\": [\"${module.codebuild.project_arn}\"]}, {\"Effect\": \"Allow\", \"Action\": [\"dynamodb:UpdateItem\"], \"Resource\": [\"${aws_dynamodb_table.deployments.arn}\"]}]}"
+      }
+    },
+    "aws_sfn_state_machine": {
+      "pipeline": {
+        "name": "${local.prefix}-app-factory",
+        "role_arn": "${aws_iam_role.pipeline.arn}",
+        "definition": "{\"Comment\": \"Minimal App Factory demo pipeline; CodeBuild writes outputs to DynamoDB.\", \"StartAt\": \"MarkBuilding\", \"TimeoutSeconds\": 2400, \"States\": {\"MarkBuilding\": {\"Type\": \"Task\", \"Resource\": \"arn:aws:states:::dynamodb:updateItem\", \"Parameters\": {\"TableName\": \"${aws_dynamodb_table.deployments.name}\", \"Key\": {\"pk\": {\"S.$\": \"States.Format('DEPLOY#{}', $.deployment_id)\"}, \"sk\": {\"S\": \"META\"}}, \"UpdateExpression\": \"SET #s = :s, updated_at = :t\", \"ExpressionAttributeNames\": {\"#s\": \"status\"}, \"ExpressionAttributeValues\": {\":s\": {\"S\": \"building\"}, \":t\": {\"S.$\": \"$$.State.EnteredTime\"}}}, \"ResultPath\": null, \"Next\": \"StartBuild\"}, \"StartBuild\": {\"Type\": \"Task\", \"Resource\": \"arn:aws:states:::codebuild:startBuild\", \"Parameters\": {\"ProjectName\": \"${module.codebuild.project_name}\", \"EnvironmentVariablesOverride\": [{\"Name\": \"DEPLOYMENT_ID\", \"Value.$\": \"$.deployment_id\", \"Type\": \"PLAINTEXT\"}, {\"Name\": \"TEMPLATE_ID\", \"Value.$\": \"$.template_id\", \"Type\": \"PLAINTEXT\"}, {\"Name\": \"DEPLOYMENT_NAME\", \"Value.$\": \"$.deployment_name\", \"Type\": \"PLAINTEXT\"}, {\"Name\": \"IAC_TYPE\", \"Value.$\": \"$.iac_type\", \"Type\": \"PLAINTEXT\"}, {\"Name\": \"AWS_TARGET_REGION\", \"Value.$\": \"$.aws_region\", \"Type\": \"PLAINTEXT\"}, {\"Name\": \"ARCHIVE_BUCKET\", \"Value.$\": \"$.s3_bucket\", \"Type\": \"PLAINTEXT\"}, {\"Name\": \"ARCHIVE_KEY\", \"Value.$\": \"$.s3_key\", \"Type\": \"PLAINTEXT\"}, {\"Name\": \"ACTION\", \"Value.$\": \"$.action\", \"Type\": \"PLAINTEXT\"}, {\"Name\": \"USE_CASE_ID\", \"Value.$\": \"$.parameters.USE_CASE_ID\", \"Type\": \"PLAINTEXT\"}, {\"Name\": \"FRAMEWORK\", \"Value.$\": \"$.parameters.FRAMEWORK\", \"Type\": \"PLAINTEXT\"}, {\"Name\": \"DEPLOYMENT_PATTERN\", \"Value.$\": \"$.parameters.DEPLOYMENT_PATTERN\", \"Type\": \"PLAINTEXT\"}, {\"Name\": \"SUBMISSION_ID\", \"Value.$\": \"$.parameters.SUBMISSION_ID\", \"Type\": \"PLAINTEXT\"}, {\"Name\": \"APP_FACTORY_TABLE_NAME\", \"Value.$\": \"$.parameters.APP_FACTORY_TABLE_NAME\", \"Type\": \"PLAINTEXT\"}, {\"Name\": \"ENABLE_TRACING\", \"Value.$\": \"$.parameters.ENABLE_TRACING\", \"Type\": \"PLAINTEXT\"}, {\"Name\": \"LANGFUSE_HOST\", \"Value.$\": \"$.parameters.LANGFUSE_HOST\", \"Type\": \"PLAINTEXT\"}, {\"Name\": \"LANGFUSE_SECRET_NAME\", \"Value.$\": \"$.parameters.LANGFUSE_SECRET_NAME\", \"Type\": \"PLAINTEXT\"}, {\"Name\": \"STATE_BUCKET\", \"Value\": \"${module.state.bucket_name}\", \"Type\": \"PLAINTEXT\"}, {\"Name\": \"DEPLOYMENTS_TABLE\", \"Value\": \"${aws_dynamodb_table.deployments.name}\", \"Type\": \"PLAINTEXT\"}, {\"Name\": \"APP_FACTORY_MAX_TOTAL_TOKENS\", \"Value\": \"150000\", \"Type\": \"PLAINTEXT\"}, {\"Name\": \"APP_FACTORY_TIMEOUT_SECONDS\", \"Value\": \"900\", \"Type\": \"PLAINTEXT\"}, {\"Name\": \"APP_FACTORY_MAX_CALLS\", \"Value\": \"80\", \"Type\": \"PLAINTEXT\"}, {\"Name\": \"BEDROCK_MODEL_ID\", \"Value\": \"zai.glm-4.7-flash\", \"Type\": \"PLAINTEXT\"}]}, \"ResultPath\": \"$.build\", \"Next\": \"StoreBuildId\", \"Catch\": [{\"ErrorEquals\": [\"States.ALL\"], \"ResultPath\": \"$.error\", \"Next\": \"MarkFailed\"}]}, \"StoreBuildId\": {\"Type\": \"Task\", \"Resource\": \"arn:aws:states:::dynamodb:updateItem\", \"Parameters\": {\"TableName\": \"${aws_dynamodb_table.deployments.name}\", \"Key\": {\"pk\": {\"S.$\": \"States.Format('DEPLOY#{}', $.deployment_id)\"}, \"sk\": {\"S\": \"META\"}}, \"UpdateExpression\": \"SET build_id = :b\", \"ExpressionAttributeValues\": {\":b\": {\"S.$\": \"$.build.Build.Id\"}}}, \"ResultPath\": null, \"Next\": \"Wait\", \"Catch\": [{\"ErrorEquals\": [\"States.ALL\"], \"ResultPath\": \"$.error\", \"Next\": \"MarkFailed\"}]}, \"Wait\": {\"Type\": \"Wait\", \"Seconds\": 20, \"Next\": \"CheckBuild\"}, \"CheckBuild\": {\"Type\": \"Task\", \"Resource\": \"arn:aws:states:::aws-sdk:codebuild:batchGetBuilds\", \"Parameters\": {\"Ids.$\": \"States.Array($.build.Build.Id)\"}, \"ResultPath\": \"$.poll\", \"Next\": \"Evaluate\", \"Catch\": [{\"ErrorEquals\": [\"States.ALL\"], \"ResultPath\": \"$.error\", \"Next\": \"MarkFailed\"}]}, \"Evaluate\": {\"Type\": \"Choice\", \"Choices\": [{\"Variable\": \"$.poll.Builds[0].BuildStatus\", \"StringEquals\": \"IN_PROGRESS\", \"Next\": \"Wait\"}, {\"Variable\": \"$.poll.Builds[0].BuildStatus\", \"StringEquals\": \"SUCCEEDED\", \"Next\": \"MarkDeployed\"}], \"Default\": \"MarkFailed\"}, \"MarkDeployed\": {\"Type\": \"Task\", \"Resource\": \"arn:aws:states:::dynamodb:updateItem\", \"Parameters\": {\"TableName\": \"${aws_dynamodb_table.deployments.name}\", \"Key\": {\"pk\": {\"S.$\": \"States.Format('DEPLOY#{}', $.deployment_id)\"}, \"sk\": {\"S\": \"META\"}}, \"UpdateExpression\": \"SET #s = :s, updated_at = :t\", \"ExpressionAttributeNames\": {\"#s\": \"status\"}, \"ExpressionAttributeValues\": {\":s\": {\"S\": \"deployed\"}, \":t\": {\"S.$\": \"$$.State.EnteredTime\"}}}, \"ResultPath\": null, \"Next\": \"Succeeded\"}, \"MarkFailed\": {\"Type\": \"Task\", \"Resource\": \"arn:aws:states:::dynamodb:updateItem\", \"Parameters\": {\"TableName\": \"${aws_dynamodb_table.deployments.name}\", \"Key\": {\"pk\": {\"S.$\": \"States.Format('DEPLOY#{}', $.deployment_id)\"}, \"sk\": {\"S\": \"META\"}}, \"UpdateExpression\": \"SET #s = :s, updated_at = :t\", \"ExpressionAttributeNames\": {\"#s\": \"status\"}, \"ExpressionAttributeValues\": {\":s\": {\"S\": \"failed\"}, \":t\": {\"S.$\": \"$$.State.EnteredTime\"}}}, \"ResultPath\": null, \"Next\": \"Failed\"}, \"Succeeded\": {\"Type\": \"Succeed\"}, \"Failed\": {\"Type\": \"Fail\", \"Error\": \"AppFactoryBuildFailed\", \"Cause\": \"Inspect the CodeBuild logs for this deployment.\"}}}",
+        "depends_on": [
+          "aws_iam_role_policy.pipeline"
+        ]
+      }
+    }
+  },
+  "module": {
+    "state": {
+      "source": "../../platform/control_plane/infrastructure/modules/state_backend",
+      "name_prefix": "${local.prefix}",
+      "tags": {
+        "Project": "ava-demo"
+      },
+      "environment": "demo"
+    },
+    "codebuild": {
+      "source": "../../platform/control_plane/infrastructure/modules/codebuild",
+      "name_prefix": "${local.prefix}",
+      "environment": "demo",
+      "image": "aws/codebuild/amazonlinux2-aarch64-standard:3.0",
+      "compute_type": "BUILD_GENERAL1_SMALL",
+      "concurrent_build_limit": 1,
+      "build_timeout": 30,
+      "project_archives_bucket_arn": "${module.state.bucket_arn}",
+      "state_backend_bucket_arn": "${module.state.bucket_arn}",
+      "deployment_metadata_table_arn": "${aws_dynamodb_table.deployments.arn}",
+      "deployments_table_arn": "${aws_dynamodb_table.deployments.arn}",
+      "lock_table_arn": "${module.state.lock_table_arn}",
+      "tags": {
+        "Project": "ava-demo"
+      }
+    }
+  },
+  "output": {
+    "state_machine_arn": {
+      "value": "${aws_sfn_state_machine.pipeline.arn}"
+    },
+    "codebuild_project": {
+      "value": "${module.codebuild.project_name}"
+    },
+    "state_bucket": {
+      "value": "${module.state.bucket_name}"
+    }
+  }
+}

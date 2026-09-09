@@ -3,6 +3,16 @@ variable "name_prefix" {
   type        = string
 }
 
+variable "concurrent_build_limit" {
+  type    = number
+  default = 10
+}
+
+variable "build_timeout" {
+  type    = number
+  default = 60
+}
+
 variable "environment" {
   description = "Environment name"
   type        = string

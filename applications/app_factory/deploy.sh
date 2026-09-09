@@ -36,6 +36,7 @@ pip install --upgrade 'boto3>=1.42.90' 2>&1 | tail -2 || echo "WARNING: boto3 up
 export AWS_REGION="$AWS_TARGET_REGION"
 export APP_FACTORY_MODEL_ID="${APP_FACTORY_MODEL_ID:-zai.glm-4.7}"
 export APP_FACTORY_FAST_MODEL_ID="${APP_FACTORY_FAST_MODEL_ID:-zai.glm-4.7-flash}"
+export BEDROCK_MODEL_ID="${BEDROCK_MODEL_ID:-zai.glm-4.7-flash}"
 
 # The workspace has the app_factory/ directory with builder.py and ui-template/
 # It also has the full FSI Foundry source structure for the builder to work with
@@ -233,7 +234,7 @@ use_case_id        = "$USE_CASE_ID"
 use_case_name      = "$USE_CASE_ID"
 framework          = "${FRAMEWORK:-strands}"
 image_tag          = "${FRAMEWORK:-strands}-latest"
-bedrock_model_id   = "${ANTHROPIC_MODEL}"
+bedrock_model_id   = "${BEDROCK_MODEL_ID}"
 TFVARS
 
 terraform init -input=false \
