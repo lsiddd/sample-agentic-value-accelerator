@@ -31,6 +31,48 @@ do saldo não necessariamente reflete imediatamente as chamadas de inferência.
 
 As seções abaixo preservam o histórico dos testes e das tentativas anteriores.
 
+## Credenciais locais com renovação automática
+
+Execute `python3 demo/start_local.py` em uma sessão Linux com systemd de usuário.
+O launcher instala/ativa `ava-aws-credentials.service` e usa o override
+`demo/compose.credentials.yaml`. Backend e gateway usam `credential_process`,
+com `Expiration`, para renovar credenciais no mesmo cliente AWS. Não são mais
+injetadas chaves temporárias fixas nas variáveis de ambiente dos containers.
+
+O serviço executa o AWS CLI do host, valida a conta e fornece credenciais por
+um socket Unix privado (diretório 0700, socket 0600). O cache de login fica no
+host; os containers recebem somente credenciais temporárias, mantidas em memória.
+O serviço inicia com a sessão de usuário e reinicia automaticamente em caso de falha.
+
+- Verificar: `systemctl --user status ava-aws-credentials.service`
+- Parar a renovação: `systemctl --user disable --now ava-aws-credentials.service`
+- Ao expirar a sessão completa: `aws login --profile default` no host. Os
+  containers passam a usar a nova sessão sem precisar reiniciar.
+- O AWS login renova credenciais de 15 minutos por até 12 horas; a renovação
+  automática não remove o prazo máximo de autenticação imposto pela AWS.
+  Fonte: https://docs.aws.amazon.com/sdkref/latest/guide/feature-login-credentials.html
+- Usar o launcher para subir/recriar o stack; executar Compose sem o override
+  de credenciais volta à configuração genérica do repositório.
+- Testes: `python -m pytest demo/test_credentials.py -q`. A renovação também
+  foi exercitada em um cliente STS real dentro do backend, forçando a expiração
+  dos metadados do SDK; backend e gateway resolveram `RefreshableCredentials`.
+
+## Custo ocioso observado
+
+Inventário em 09/09/2026, us-east-1: nenhum EC2, NAT Gateway ou RDS ativo e
+nenhum CodeBuild em execução. Imagem ECR de 187.726.500 bytes (~188 MB);
+AgentCore com idle timeout de 900 segundos. A imagem custa aproximadamente
+US$ 0,019/mês a US$ 0,10/GB-mês, antes de franquias/créditos.
+
+Estimativa conservadora para esta demo sem chamadas nem novos builds:
+US$ 0,01–0,05/dia (US$ 0,30–1,50/mês), incluindo pequena margem para dados/logs.
+É uma estimativa de infraestrutura ociosa, não medição da fatura da conta,
+nem teto para uso da API pública. Geração de apps, inferências, sessões ativas
+(memória inclusive enquanto aguardam) e tráfego são cobrados à parte.
+
+Fontes: https://aws.amazon.com/ecr/pricing/ e
+https://aws.amazon.com/bedrock/agentcore/pricing/.
+
 ## Modelos e alterações
 
 - Nova Lite é o padrão em 10 templates, incluindo os configs Strands/LangGraph,
