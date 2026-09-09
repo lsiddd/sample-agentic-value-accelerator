@@ -90,6 +90,11 @@ capacidade de quotas ou funcionamento de uma aplicação implantada.
   backend. A rota depende de pipeline Step Functions/CodeBuild, IAM e tabela
   de deployments. Não foi disparada: ela cria um bucket antes de gravar o
   deployment e verificar o pipeline. A geração completa segue não validada.
+- Preparação do pipeline pausada antes de provisionar: `app_factory/deploy.sh`
+  ainda escreve `bedrock_model_id = "${ANTHROPIC_MODEL}"`, mas essa variável
+  não é definida no script nem no ambiente do CodeBuild. A expansão vazia
+  sobrescreveria o padrão GLM Flash do Terraform. Falta migrar esse ponto para
+  `BEDROCK_MODEL_ID` com padrão `zai.glm-4.7-flash`.
 - Build frontend e 22 testes offline (App Factory + templates) passaram.
 
 Também foi identificado que as políticas IAM de alguns templates constroem
