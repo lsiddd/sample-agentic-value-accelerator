@@ -176,3 +176,17 @@ def test_shell_workdir_selects_project_and_does_not_persist(tmp_path):
     assert asyncio.run(runtime.shell('pwd')).strip() == str(tmp_path)
     with pytest.raises(BuildError):
         asyncio.run(runtime.shell('pwd', '..'))
+
+
+@pytest.mark.parametrize("content,expected", [(None, "error"), ("{broken", "error"), ('{"ticket_id":"TKT001"}', "success")])
+def test_data_specialist_completion_requires_valid_domain_samples(tmp_path, content, expected):
+    sample = tmp_path / "samples/TKT001/ticket.json"
+    sample.parent.mkdir(parents=True)
+    if content is not None:
+        sample.write_text(content)
+    opts = options(tmp_path, agents={"data-builder": AgentDefinition(
+        "Data", "Generate", [], "zai.glm-4.7-flash", required_json_dirs=("samples",))})
+    executor = BedrockExecutor(opts, Client(response("Generated")))
+    result = asyncio.run(executor.tool(call("Agent", {"subagent_type": "data-builder", "prompt": "Generate"}), ["Agent"]))
+    assert result["toolResult"]["status"] == expected
+    assert ("data-builder" in executor.completed) == (expected == "success")
