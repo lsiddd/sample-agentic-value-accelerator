@@ -92,9 +92,12 @@ capacidade de quotas ou funcionamento de uma aplicação implantada.
   Primeira execução chegou ao gerador GLM 4.7 e começou a ler referências.
   Build interrompido durante a geração, antes de validar o app completo:
   a API mostrava `pending` apesar do estado MarkBuilding ter concluído.
-  Causa identificada: após iniciar Step Functions, a rota faz `put_item` do
-  objeto antigo para salvar `execution_arn`, podendo sobrescrever o status
-  atualizado pelo pipeline. Correção pendente: atualizar somente o ARN.
+  Causa identificada: após iniciar Step Functions, a rota fazia `put_item` do
+  objeto antigo para salvar `execution_arn`, sobrescrevendo o status atualizado.
+  Corrigido para atualizar somente o ARN; teste de concorrência passou.
+  Segunda execução preservou status/build ID, mas revelou erro no pipeline mínimo:
+  ele grava `building`, ausente do enum DeploymentStatus, causando HTTP 500 na
+  consulta. Correção pendente: usar `deploying`. Segundo build também interrompido.
   CodeBuild terminou STOPPED e o workflow registrou a execução como FAILED.
   Geração completa, deploy AgentCore e UI gerada ainda não foram validados.
 - Modelo do runtime corrigido: `BEDROCK_MODEL_ID` com padrão
