@@ -86,15 +86,19 @@ capacidade de quotas ou funcionamento de uma aplicação implantada.
   `PAY_PER_REQUEST`, chaves string `pk`/`sk`, tag `Project=ava-demo`.
   Submissão fictícia `demo-support-triage` salva pela API (HTTP 201), catálogo
   `AS01`; consultas de detalhe e lista passaram com todos os campos preservados.
-- Geração/deploy pela interface pausados: `STATE_MACHINE_ARN` está vazio no
-  backend. A rota depende de pipeline Step Functions/CodeBuild, IAM e tabela
-  de deployments. Não foi disparada: ela cria um bucket antes de gravar o
-  deployment e verificar o pipeline. A geração completa segue não validada.
-- Preparação do pipeline pausada antes de provisionar: `app_factory/deploy.sh`
-  ainda escreve `bedrock_model_id = "${ANTHROPIC_MODEL}"`, mas essa variável
-  não é definida no script nem no ambiente do CodeBuild. A expansão vazia
-  sobrescreveria o padrão GLM Flash do Terraform. Falta migrar esse ponto para
-  `BEDROCK_MODEL_ID` com padrão `zai.glm-4.7-flash`.
+- Pipeline mínimo provisionado em `demo/pipeline`: 23 recursos Terraform,
+  incluindo CodeBuild, Step Functions, IAM, duas tabelas e dois buckets.
+  Backend conectado via `STATE_MACHINE_ARN`; deploy de `AS01` retornou HTTP 201.
+  Primeira execução chegou ao gerador GLM 4.7 e começou a ler referências.
+  Build interrompido durante a geração, antes de validar o app completo:
+  a API mostrava `pending` apesar do estado MarkBuilding ter concluído.
+  Causa identificada: após iniciar Step Functions, a rota faz `put_item` do
+  objeto antigo para salvar `execution_arn`, podendo sobrescrever o status
+  atualizado pelo pipeline. Correção pendente: atualizar somente o ARN.
+  CodeBuild terminou STOPPED e o workflow registrou a execução como FAILED.
+  Geração completa, deploy AgentCore e UI gerada ainda não foram validados.
+- Modelo do runtime corrigido: `BEDROCK_MODEL_ID` com padrão
+  `zai.glm-4.7-flash` substitui a variável indefinida `ANTHROPIC_MODEL`.
 - Build frontend e 22 testes offline (App Factory + templates) passaram.
 
 Também foi identificado que as políticas IAM de alguns templates constroem
@@ -102,7 +106,9 @@ Também foi identificado que as políticas IAM de alguns templates constroem
 Antes de deploy com Nova cross-region, ajustar essas políticas para o profile
 e os modelos de destino. As execuções locais com root não validam a role do runtime.
 Recursos AWS criados até esta etapa: tabelas DynamoDB de Guardrails, Knowledge
-e App Factory e o Bedrock Guardrail `ava-demo-word-filter`, todos em `us-east-1`.
+e App Factory, o Bedrock Guardrail `ava-demo-word-filter`, os recursos do
+pipeline descritos em `pipeline/README.md` e um bucket de arquivos do primeiro
+deploy, todos em `us-east-1`.
 
 ## Reproduzir
 
