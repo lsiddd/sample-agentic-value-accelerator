@@ -40,7 +40,7 @@ variable "environment" {
 variable "model_id" {
   description = "Bedrock model ID for IAM policy scoping and runtime environment."
   type        = string
-  default     = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
+  default     = "us.amazon.nova-lite-v1:0"
 }
 
 variable "tags" {

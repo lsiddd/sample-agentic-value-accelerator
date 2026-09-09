@@ -574,7 +574,7 @@ def _filter_display_models(models: List[Dict[str, Any]]) -> List[Dict[str, Any]]
     # Raw Bedrock model IDs / cross-region inference profiles start with a
     # dot-separated provider prefix (us.anthropic.*, us.amazon.*, openai.*, ...).
     raw_id_pattern = re.compile(
-        r"^(us\.|eu\.|apac\.|global\.|openai\.|anthropic\.|amazon\.|meta\.|mistral\.|cohere\.)"
+        r"^(us\.|eu\.|apac\.|global\.|openai\.|anthropic\.|amazon\.|meta\.|mistral\.|cohere\.|zai\.)"
     )
 
     display = [m for m in models if not raw_id_pattern.match(m.get("id", ""))]
@@ -686,6 +686,8 @@ async def list_virtual_keys(gateway_id: str, _=Depends(require_role(Role.VIEWER)
 def _infer_model_owner(model_name: str) -> str:
     """Map a model display name to its provider for the owned_by field."""
     name_lower = model_name.lower()
+    if "glm" in name_lower or name_lower.startswith("zai."):
+        return "zai"
     if "claude" in name_lower or "anthropic" in name_lower:
         return "anthropic"
     if "gpt" in name_lower or "openai" in name_lower:

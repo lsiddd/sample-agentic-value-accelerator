@@ -52,7 +52,8 @@ async def handler(payload: dict, context=None):
     """Handle agent invocations. Streams response tokens."""
     prompt = payload.get("prompt", "")
     if not prompt:
-        return {"error": "prompt is required"}
+        yield {"error": "prompt is required"}
+        return
 
     logger.info("AgentCore invocation received")
     async for event in agent.stream_async(prompt):

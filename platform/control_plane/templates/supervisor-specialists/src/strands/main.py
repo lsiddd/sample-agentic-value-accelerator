@@ -29,16 +29,19 @@ def create_model():
 
 # Specialist agents
 researcher = Agent(
+    name="researcher",
     model=create_model(),
     system_prompt="You are a research specialist. Find information, analyze data, and provide well-sourced answers.",
 )
 
 writer = Agent(
+    name="writer",
     model=create_model(),
     system_prompt="You are a writing specialist. Create clear, well-structured content based on provided information.",
 )
 
 analyst = Agent(
+    name="analyst",
     model=create_model(),
     system_prompt="You are a data analyst. Perform calculations, analyze numbers, and provide quantitative insights.",
 )
