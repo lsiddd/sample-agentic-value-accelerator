@@ -168,7 +168,7 @@ def build_agent_options(use_case_name: str) -> AgentOptions:
                 tools=["Read", "Write", "Edit", "Bash", "Glob"],
                 model=fast_model,
                 max_turns=int(os.getenv("APP_FACTORY_AGENT_MAX_TURNS", "15")),
-                required_files=(f"{fsi}/data/samples/{use_case_name}/CUST001/profile.json",),
+                required_json_dirs=(f"{fsi}/data/samples/{use_case_name}",),
             ),
             "docs-builder": AgentDefinition(
                 description=(
@@ -696,8 +696,7 @@ def validate_generated_files(use_case_name: str) -> None:
         "src/strands/config.py", "src/strands/orchestrator.py",
         "src/strands/agents/__init__.py", "docs/use-case.md",
     )]
-    required += [FSI_FOUNDRY / "data/samples" / use_case_name / "CUST001/profile.json",
-                 FSI_FOUNDRY / "ui" / use_case_name / "public/runtime-config.json"]
+    required += [FSI_FOUNDRY / "ui" / use_case_name / "public/runtime-config.json"]
     missing = [str(path.relative_to(FSI_FOUNDRY)) for path in required if not path.is_file()]
     if missing:
         raise BuildError("Required generated files missing: " + ", ".join(missing))
@@ -705,7 +704,10 @@ def validate_generated_files(use_case_name: str) -> None:
         raise BuildError("No specialist agent files were generated")
     for path in use_case.rglob("*.py"):
         ast.parse(path.read_text(), filename=str(path))
-    for path in (FSI_FOUNDRY / "data/samples" / use_case_name).rglob("*.json"):
+    samples = [p for p in (FSI_FOUNDRY / "data/samples" / use_case_name).rglob("*.json") if p.is_file()]
+    if not samples:
+        raise BuildError("No JSON sample data was generated")
+    for path in samples:
         json.loads(path.read_text())
     runtime = json.loads(required[-1].read_text())
     for key in ("use_case_id", "use_case_name", "description", "domain", "agents", "input_schema"):

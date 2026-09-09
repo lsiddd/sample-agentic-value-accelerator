@@ -28,6 +28,7 @@ class AgentDefinition:
     model: str
     max_turns: int = 30
     required_files: tuple[str, ...] = ()
+    required_json_dirs: tuple[str, ...] = ()
 
 
 @dataclass
@@ -236,11 +237,19 @@ class BedrockExecutor:
                 specialist_prompt = definition.prompt
                 if definition.required_files:
                     specialist_prompt += "\nCompletion requires these exact files: " + ", ".join(definition.required_files)
+                if definition.required_json_dirs:
+                    specialist_prompt += "\nCompletion requires JSON samples matching the generated retrieval code under: " + ", ".join(definition.required_json_dirs)
                 result = await self.loop(args["prompt"], specialist_prompt, definition.model,
                                          definition.tools, definition.max_turns, tool_id)
                 missing_files = [p for p in definition.required_files if not self.path(p).is_file()]
                 if missing_files:
                     raise BuildError("Specialist did not produce required files: " + ", ".join(missing_files))
+                for directory in definition.required_json_dirs:
+                    samples = [p for p in self.path(directory).rglob("*.json") if p.is_file()]
+                    if not samples:
+                        raise BuildError("Specialist did not produce JSON samples under: " + directory)
+                    for sample in samples:
+                        json.loads(self.path(str(sample)).read_text())
                 await self.hooks("PostToolUse", name, args, tool_id)
                 if agent_name == "validator" and re.search(r"(?im)^\s*(?:[-*#]\s*|\*\*)*(?:FAIL|FAILED)\b", result):
                     raise BuildError(result)

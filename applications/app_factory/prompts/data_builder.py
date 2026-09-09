@@ -18,13 +18,14 @@ that agents can use during testing. Data must be realistic,
 domain-appropriate, and cover common scenarios including edge cases.
 
 ==========================================================================
-STEP 1 — Profile JSONs (required for every use case)
+STEP 1 — Domain sample JSONs (required for every use case)
 ==========================================================================
 
 RULES:
 - Create files under {fsi_foundry_path}/data/samples/{use_case_name}/
-- Use the pattern: {{entity_id}}/profile.json (e.g., CUST001/profile.json)
-- Generate at least 3 diverse sample entities (e.g., CUST001, CUST002, CUST003)
+- Match entity IDs, filenames and JSON schema to the generated retrieval code and UI test entities.
+- Use {{entity_id}}/profile.json only when the retrieval code expects profiles; tickets may use {{ticket_id}}/ticket.json.
+- Generate at least 3 diverse sample entities with domain-appropriate IDs
 - Include realistic field values appropriate for the domain
 - Cover scenarios: normal/happy path, edge case, and high-risk/complex case
 - Use the Write tool to create files

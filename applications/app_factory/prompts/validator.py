@@ -25,7 +25,8 @@ Run these validation checks and report results:
    - use_cases/{use_case_name}/src/strands/config.py
    - use_cases/{use_case_name}/src/strands/orchestrator.py
    - use_cases/{use_case_name}/src/strands/agents/__init__.py
-   - data/samples/{use_case_name}/CUST001/profile.json
+   - JSON samples under data/samples/{use_case_name}/, using entity IDs and filenames
+     that match the generated retrieval code (do not require CUST001 or profile.json)
    - ui/{use_case_name}/public/runtime-config.json
 
 3. RUNTIME CONFIG — read ui/{use_case_name}/public/runtime-config.json and verify:
