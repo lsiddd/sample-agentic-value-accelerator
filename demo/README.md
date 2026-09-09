@@ -74,15 +74,25 @@ capacidade de quotas ou funcionamento de uma aplicação implantada.
   Listagem voltou a HTTP 200. Erro 500 simulado no navegador mostra alerta;
   botão Try again recupera a listagem real.
 - Memory abre sem erros; criação e persistência ainda não testadas.
-- Testes pausados em Knowledge: `GET /api/v1/knowledge` retorna 500 por
-  `ResourceNotFoundException` no DynamoDB. Falta `fsi-control-plane-knowledge`.
+- Knowledge: tabela `fsi-control-plane-knowledge` criada com as mesmas chaves,
+  modo de cobrança e tag da tabela de Guardrails. API HTTP 200; alerta de erro
+  e recuperação pelo botão Try again validados no navegador.
+- Guardrail real `ava-demo-word-filter` criado pela API do app: status active.
+  ApplyGuardrail com versão DRAFT bloqueou `AVA_DEMO_BLOCKED`
+  (`GUARDRAIL_INTERVENED`) e liberou uma frase comum (`NONE`).
+  Isso valida filtro de palavras; PII, filtros de conteúdo e integração no gateway
+  ainda não foram testados.
+- Testes pausados em App Factory: `GET /api/v1/app-factory/submissions`
+  retorna 500 por `ResourceNotFoundException`. Falta a tabela
+  `fsi-control-plane-app-factory`.
 - Build frontend e 22 testes offline (App Factory + templates) passaram.
 
 Também foi identificado que as políticas IAM de alguns templates constroem
 `foundation-model/${var.model_id}` mesmo para IDs `us.*` de inference profiles.
 Antes de deploy com Nova cross-region, ajustar essas políticas para o profile
 e os modelos de destino. As execuções locais com root não validam a role do runtime.
-Até esta etapa, o único recurso AWS criado foi a tabela DynamoDB de Guardrails.
+Recursos AWS criados até esta etapa: tabelas DynamoDB de Guardrails e Knowledge
+e o Bedrock Guardrail `ava-demo-word-filter`, todos em `us-east-1`.
 
 ## Reproduzir
 

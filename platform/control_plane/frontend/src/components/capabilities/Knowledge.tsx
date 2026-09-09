@@ -73,6 +73,7 @@ function getTheme(type: string): TypeTheme {
 export default function Knowledge() {
   const [registrations, setRegistrations] = useState<KnowledgeRegistration[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [showDrawer, setShowDrawer] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<KnowledgeRegistration | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -84,8 +85,9 @@ export default function Knowledge() {
     try {
       const data = await knowledgeApi.list();
       setRegistrations(data.registrations.filter(r => r.status !== 'DELETED'));
+      setLoadError(false);
     } catch {
-      // ignore
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -297,6 +299,12 @@ export default function Knowledge() {
         {/* Content area */}
         {loading ? (
           <div className="text-center py-20 text-slate-400">Loading...</div>
+        ) : loadError ? (
+          <div role="alert" className="text-center py-16 border border-red-200 rounded-xl bg-red-50">
+            <h3 className="text-sm font-semibold text-red-900">Unable to load knowledge sources</h3>
+            <p className="text-sm text-red-700 mt-2">The request failed. Try again to load your knowledge sources.</p>
+            <button onClick={() => { setLoading(true); fetchRegistrations(); }} className="btn-primary text-sm mt-4">Try again</button>
+          </div>
         ) : registrations.length === 0 ? (
           <div className="text-center py-16 border-2 border-dashed border-slate-200 rounded-2xl bg-white/60">
             <Icon name="circle-stack" className="w-10 h-10 mx-auto mb-3 text-slate-300" />
