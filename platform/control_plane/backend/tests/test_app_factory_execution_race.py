@@ -32,7 +32,7 @@ class ExecutionRaceTest(unittest.TestCase):
         submissions.get_item.return_value = {'Item': {'use_case_name': 'demo'}}
 
         def start(**kw):
-            stored.update(status='building', build_id='test-build', updated_at='pipeline-time')
+            stored.update(status='deploying', build_id='test-build', updated_at='pipeline-time')
             return {'executionArn': 'test-execution'}
         pipeline = SimpleNamespace(state_machine_arn='test-machine', sfn_client=Mock())
         pipeline.sfn_client.start_execution.side_effect = start
@@ -43,7 +43,7 @@ class ExecutionRaceTest(unittest.TestCase):
              patch.object(route.os, 'walk', return_value=[]), \
              patch.object(route.zipfile.ZipFile, 'write'):
             response = asyncio.run(route.deploy_submission('test-submission'))
-        self.assertEqual(stored['status'], 'building')
+        self.assertEqual(stored['status'], 'deploying')
         self.assertEqual(stored['build_id'], 'test-build')
         self.assertEqual(stored['updated_at'], 'pipeline-time')
         self.assertEqual(stored['execution_arn'], 'test-execution')
