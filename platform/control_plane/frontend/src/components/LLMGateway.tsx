@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { llmGatewayApi, type GatewayInstance } from '../api/llmGateway';
 import { deploymentsApi } from '../api/client';
-import { openFsiApp, withAvaToken } from '../lib/fsiAppLink';
+import { withAvaToken } from '../lib/fsiAppLink';
 
 // Cross-region inference profile IDs (us.*) — AWS auto-routes across
 // us-east-1/us-east-2/us-west-2 for higher throughput + automatic failover.
@@ -20,21 +20,15 @@ const DEFAULT_MODELS = [
   'us.amazon.nova-lite-v1:0',
 ];
 
-// Full-replacement page: shows the LiteLLM admin UI (served at
-// <cloudfront>/ui) inside an iframe, gated by the AVA SSO CloudFront
-// Function. Mirrors Observability.tsx's Langfuse embed. The custom
-// TypeScript tabs (Overview, Config, Models, Virtual Keys, Spend, Audit,
-// Playground) were retired — LiteLLM's own admin UI covers all of that.
+// Open the native LiteLLM admin in a separate tab; it disallows framing.
 
 export default function LLMGateway(_props?: { initialTab?: string }) {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [instance, setInstance] = useState<GatewayInstance | null>(null);
-  const [serverReachable, setServerReachable] = useState<boolean | null>(null);
-  const [iframeError, setIframeError] = useState(false);
   // Admin UI URL with AVA SSO handoff token appended. Null until minted
   // (or when auth isn't configured → falls back to the raw admin_ui_url).
-  const [iframeUrl, setIframeUrl] = useState<string | null>(null);
+  const [adminUrl, setAdminUrl] = useState<string | null>(null);
 
   // Deploy form state — restored from the historical GatewayOverview.tsx
   // (git b7f1362a rewrote LLMGateway.tsx into an iframe-only page and
@@ -117,52 +111,21 @@ export default function LLMGateway(_props?: { initialTab?: string }) {
     }
   };
 
-  // Mint the AVA handoff token and append it as ?ava_token=... so the
-  // CloudFront Function accepts the iframe load and drops the LiteLLM
-  // session cookie. Falls back to the raw URL when auth is disabled.
-  //
-  // The trailing slash on /ui/ matters: LiteLLM's /ui handler emits a 307
-  // to http://<domain>/ui/ (missing the trailing slash and downgrading
-  // scheme because the ALB-→-ECS hop is HTTP). CloudFront then 301s the
-  // HTTP URL back to HTTPS. That HTTP intermediate step trips mixed-
-  // content blocking inside HTTPS iframes and leaves the frame blank.
-  // Requesting /ui/ directly skips the whole redirect chain.
+  // Prepare the SSO handoff before clicking so the browser can open the tab directly.
   useEffect(() => {
     const raw = instance?.admin_ui_url;
-    if (!raw) { setIframeUrl(null); return; }
+    if (!raw) { setAdminUrl(null); return; }
     const url = raw.endsWith('/') ? raw : raw + '/';
     let cancelled = false;
     withAvaToken(url).then((withToken) => {
-      if (!cancelled) setIframeUrl(withToken ?? url);
+      if (!cancelled) setAdminUrl(withToken ?? url);
     }).catch(() => {
-      if (!cancelled) setIframeUrl(url);
+      if (!cancelled) setAdminUrl(url);
     });
     return () => { cancelled = true; };
   }, [instance?.admin_ui_url]);
 
-  // Reachability probe — if the CloudFront distribution is down or the ECS
-  // service isn't up yet, don't render the iframe (it would just show a
-  // spinner forever).
-  useEffect(() => {
-    const url = instance?.admin_ui_url;
-    if (!url) { setServerReachable(null); return; }
-    let cancelled = false;
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
-    (async () => {
-      try {
-        await fetch(url, { method: 'GET', mode: 'no-cors', signal: controller.signal });
-        if (!cancelled) setServerReachable(true);
-      } catch {
-        if (!cancelled) setServerReachable(false);
-      } finally {
-        clearTimeout(timeout);
-      }
-    })();
-    return () => { cancelled = true; clearTimeout(timeout); };
-  }, [instance?.admin_ui_url]);
-
-  const hasServer = !!instance?.admin_ui_url && serverReachable !== false;
+  const hasServer = !!instance?.admin_ui_url;
 
   return (
     <div className="min-h-[calc(100vh-4rem)] relative">
@@ -213,12 +176,7 @@ export default function LLMGateway(_props?: { initialTab?: string }) {
                   </div>
                 </div>
                 <a
-                  href={instance.admin_ui_url}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    const raw = instance.admin_ui_url;
-                    openFsiApp(raw.endsWith('/') ? raw : raw + '/');
-                  }}
+                  href={adminUrl ?? instance.admin_ui_url}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 px-5 py-2.5 bg-slate-800 hover:bg-slate-900 text-white text-sm font-medium rounded-lg transition-colors flex-shrink-0"
@@ -231,55 +189,11 @@ export default function LLMGateway(_props?: { initialTab?: string }) {
               </div>
             </div>
 
-            {/* Embedded LiteLLM admin UI. Do NOT set iframe src until
-                iframeUrl (with the ?ava_token=... handoff) is ready — the
-                CF SSO gate 302s any request without a valid ava_session to
-                the AVA login URL, and the browser follows the redirect
-                inside the iframe, ending up displaying the AVA UI's own
-                bootstrap HTML instead of the admin console. */}
-            {!iframeError ? (
-              <div className="rounded-xl border border-slate-200 overflow-hidden bg-white" style={{ height: 'calc(100vh - 20rem)' }}>
-                {iframeUrl ? (
-                  <iframe
-                    src={iframeUrl}
-                    className="w-full h-full border-0"
-                    title="LLM Gateway Admin UI"
-                    onError={() => setIframeError(true)}
-                    onLoad={(e) => {
-                      try {
-                        const iframe = e.target as HTMLIFrameElement;
-                        if (iframe.contentWindow?.location.href === 'about:blank') {
-                          setIframeError(true);
-                        }
-                      } catch {
-                        // Cross-origin access denied = iframe loaded successfully
-                      }
-                    }}
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <div className="flex items-center gap-3 text-sm text-slate-500">
-                      <div className="w-5 h-5 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin"></div>
-                      Signing in to LLM Gateway…
-                    </div>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="card border-amber-200 bg-amber-50/30">
-                <div className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
-                  </svg>
-                  <div>
-                    <p className="text-sm font-medium text-amber-900">Unable to embed the LLM Gateway admin UI</p>
-                    <p className="text-sm text-amber-700/80 mt-1">
-                      Use the "Open in New Tab" button above to access it directly.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
+            <div className="card border-slate-200 bg-white">
+              <p className="text-sm text-slate-600">
+                Open the administrator in a new tab to manage models, virtual keys, budgets, and usage.
+              </p>
+            </div>
           </>
         ) : (
           <div className="card border-slate-200 bg-slate-50/50">

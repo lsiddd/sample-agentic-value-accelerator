@@ -21,6 +21,7 @@ type FilterStatus = 'all' | 'active' | 'draft' | 'failed';
 export default function GuardrailTemplateList({ onCreateNew }: Props) {
   const [templates, setTemplates] = useState<GuardrailTemplate[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [filter, setFilter] = useState<FilterStatus>('all');
 
@@ -30,11 +31,12 @@ export default function GuardrailTemplateList({ onCreateNew }: Props) {
 
   const loadTemplates = async () => {
     setLoading(true);
+    setLoadError(false);
     try {
       const data = await guardrailsApi.list();
       setTemplates(data.filter((t) => t.status !== 'deleted'));
     } catch {
-      // API might not be deployed yet — show empty state
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -87,6 +89,16 @@ export default function GuardrailTemplateList({ onCreateNew }: Props) {
     return (
       <div className="flex items-center justify-center py-20">
         <div className="w-6 h-6 border-2 border-slate-200 border-t-blue-600 rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div role="alert" className="text-center py-16 border border-red-200 rounded-xl bg-red-50">
+        <h3 className="text-sm font-semibold text-red-900">Unable to load guardrails</h3>
+        <p className="text-sm text-red-700 mt-2">The request failed. Try again to load your guardrails.</p>
+        <button onClick={loadTemplates} className="btn-primary text-sm mt-4">Try again</button>
       </div>
     );
   }

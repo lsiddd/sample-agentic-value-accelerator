@@ -766,9 +766,9 @@ Spin up the full stack locally — backend, frontend, LLM Gateway (LiteLLM), Red
 
 **Prerequisites:**
 - Finch (`brew install finch && finch vm init`) or Docker with Compose v2
-- Valid AWS credentials with Bedrock model access in `us-east-2`
+- Valid AWS credentials with Bedrock model access in `us-east-1`
 - AWS CLI v2 (`aws configure export-credentials` support)
-- Bedrock Mantle API key (required for GPT-5.5 / GPT-5.4 models)
+- The default local catalog uses Amazon Nova Lite and GLM 4.7 Flash; no Mantle key is needed.
 
 **1. Configure environment variables**
 
@@ -779,7 +779,8 @@ cd platform/control_plane
 cp .env.example .env
 ```
 
-Edit `.env` and add your Bedrock Mantle API key (generate one from the [Bedrock Mantle console](https://console.aws.amazon.com/bedrock/home#/mantle/api-keys)):
+The example `.env` selects `us-east-1`. A Bedrock Mantle API key is optional,
+only if you add Mantle models to the gateway yourself:
 
 ```
 BEDROCK_MANTLE_API_KEY=your-key-here
@@ -822,7 +823,8 @@ curl -s http://localhost:4000/health \
   | python3 -m json.tool
 ```
 
-You should see `"healthy_count": 8` with all configured Bedrock models listed. The master key for local dev is `sk-local-dev-key`.
+Check that Nova Lite and GLM 4.7 Flash are healthy. Each model also has a raw-ID
+alias, so the health response may count aliases separately. The master key for local dev is `sk-local-dev-key`.
 
 **5. Test a chat completion**
 

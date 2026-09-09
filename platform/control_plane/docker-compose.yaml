@@ -12,7 +12,7 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
 
   postgres:
     image: postgres:15-alpine
@@ -21,7 +21,7 @@ services:
       POSTGRES_PASSWORD: litellm_local
       POSTGRES_DB: litellm
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
 
@@ -29,14 +29,14 @@ services:
     image: ghcr.io/berriai/litellm:main-latest
     command: ["--config", "/app/config.yaml", "--port", "4000"]
     ports:
-      - "4000:4000"
+      - "127.0.0.1:4000:4000"
     environment:
       - LITELLM_MASTER_KEY=sk-local-dev-key
       - DATABASE_URL=postgresql://litellm:litellm_local@postgres:5432/litellm
       - REDIS_HOST=redis
       - REDIS_PASSWORD=
       - LITELLM_CONFIG_PATH=/app/config.yaml
-      - AWS_REGION_NAME=${AWS_REGION:-us-east-2}
+      - AWS_REGION_NAME=${AWS_REGION:-us-east-1}
       - AWS_PROFILE=${AWS_PROFILE:-}
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
@@ -55,13 +55,14 @@ services:
       context: ../../
       dockerfile: platform/control_plane/backend/Dockerfile
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     environment:
       - LITELLM_GATEWAY_URL=http://gateway:4000
+      - LLM_GATEWAY_ADMIN_URL=http://localhost:4000/ui/
       - LITELLM_MASTER_KEY=sk-local-dev-key
       - LITELLM_LOCAL_CONFIG_PATH=/app/litellm-config.yaml
       - LOCAL_MODE=true
-      - AWS_REGION=us-east-2
+      - AWS_REGION=${AWS_REGION:-us-east-1}
       - USE_DEV_AUTH=true
       - DEPLOYMENTS_TABLE_NAME=fsi-control-plane-deployments
       - GUARDRAILS_TABLE_NAME=fsi-control-plane-guardrails
@@ -81,7 +82,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     ports:
-      - "3000:80"
+      - "127.0.0.1:3000:80"
     volumes:
       - ./frontend/nginx.local.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
